@@ -1,0 +1,106 @@
+{
+  "theme": "dark",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "design_philosophy": "Function-first, stark contrast, terminal-inspired elements combined with polished Swiss layout principles. Data density is high, but spacing is deliberate. Focus on optical clarity, grid alignments, and purely functional colors. This is a technical 'control room' for enterprise LLM management.",
+  "colors": {
+    "background": "#09090B",
+    "surface": "#18181B",
+    "surface_hover": "#27272A",
+    "border": "#27272A",
+    "border_focus": "#52525B",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#A1A1AA",
+    "text_tertiary": "#71717A",
+    "primary": "#FFFFFF",
+    "primary_foreground": "#09090B",
+    "accent": "#3B82F6",
+    "success": "#22C55E",
+    "warning": "#EAB308",
+    "danger": "#EF4444",
+    "chart_palette": ["#FFFFFF", "#A1A1AA", "#52525B", "#3F3F46", "#27272A"]
+  },
+  "typography": {
+    "heading_font": "Chivo",
+    "body_font": "IBM Plex Sans",
+    "mono_font": "IBM Plex Mono",
+    "scales": {
+      "h1": "text-4xl tracking-tight leading-none font-bold",
+      "h2": "text-2xl tracking-tight leading-none font-semibold",
+      "h3": "text-xl tracking-tight leading-snug font-medium",
+      "h4": "text-lg tracking-tight font-medium",
+      "body": "text-sm leading-relaxed",
+      "small": "text-xs tracking-wide",
+      "overline": "text-[10px] uppercase tracking-[0.2em] font-semibold text-text_secondary"
+    },
+    "font_imports": "@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;700;900&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');"
+  },
+  "layout_and_spacing": {
+    "philosophy": "Strict grid hierarchy. Dashboard uses MODE B: THE CONTROL ROOM GRID. Density, Data Correlation, Scanability.",
+    "grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 or gap-6",
+    "spacing_scale": "Tailwind standard (p-4, p-6 for widgets)",
+    "container_padding": "p-6",
+    "border_radius": "rounded-md (subtle roundness, max 6px or 8px)"
+  },
+  "surface_strategies": {
+    "dashboard_cards": "Flat background, 1px subtle border (border-zinc-800), no shadow. On hover: Slight lift (-translate-y-1), border color lightens (border-zinc-600), subtle glow.",
+    "headers": "Solid Background with a hard bottom border (border-zinc-800). No glassmorphism unless scrolling over complex charts.",
+    "toggles_buttons": "Sharp inner contrasts. 1px solid strokes instead of soft shadows."
+  },
+  "components": {
+    "general": "Use Shadcn UI components heavily customized to match the Swiss & High-Contrast dark theme (flat, borders, subtle rounded-md).",
+    "charts": "Use Shadcn charts (Recharts). Stick to monochrome + 1 accent color for data visualization to avoid looking cluttered.",
+    "cards": "Go mostly cardless where possible by using grid layout with borders (Grid Borders technical look), or minimal flat cards.",
+    "navigation": "Sidebar navigation with distinct active states (e.g. left border highlight or white background with dark text for active).",
+    "icons": "Use Phosphor Icons (dense dashboard suitable)."
+  },
+  "motion": {
+    "hover": "Fast and crisp. transition-colors duration-200",
+    "page_load": "Staggered fade-up for widgets.",
+    "charts": "Smooth drawing animations."
+  },
+  "accessibility": {
+    "contrast": "All text must pass WCAG AA. Hover states must explicitly set text color (e.g., hover:bg-zinc-800 hover:text-white).",
+    "focus": "focus-visible:ring-1 focus-visible:ring-zinc-300 focus-visible:outline-none"
+  },
+  "media": {
+    "backgrounds": [
+      {
+        "category": "empty_state_or_login",
+        "url": "https://static.prod-images.emergentagent.com/jobs/419f0bd6-f435-46ff-bb7f-a9f54b06279d/images/844b1d1df58012379f63b7926ed5dd37ce3b933277649d110f44ecea2e469a98.png",
+        "description": "Abstract AI network background for empty states or login"
+      },
+      {
+        "category": "infrastructure_visual",
+        "url": "https://static.prod-images.emergentagent.com/jobs/419f0bd6-f435-46ff-bb7f-a9f54b06279d/images/4fe2d83c2fe2ccf4af825b447ae97ed48160433fe7ad5691a2ba40dbd710ff8f.png",
+        "description": "Server infrastructure visual for infrastructure pages"
+      }
+    ],
+    "logos": [
+      {
+        "category": "generic_provider_logo",
+        "url": "https://images.unsplash.com/photo-1661347998423-b15d37d6f61e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHx0ZWNoJTIwY29tcGFueSUyMGxvZ29zJTIwYmxhY2slMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3OTE0NDEwNXww&ixlib=rb-4.1.0&q=85",
+        "description": "Generic tech logo placeholder"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build out the 9 dashboard pages using React Router and a persistent sidebar layout.",
+    "Implement the 'Overview' page with metrics cards (Savings, Hit Rate, Token Reduction) and charts.",
+    "Implement 'Routing Intelligence' with a decisions table and model distribution charts.",
+    "Implement 'Semantic Cache' with a threshold tuner slider and hit/miss line chart.",
+    "Implement 'Budget Governance' with burn progress bars and RBAC policies view.",
+    "Implement 'Forecasting' with 30/60/90 spend charts.",
+    "Implement 'Recommendations' with actionable cards.",
+    "Implement 'Provider Analytics' with cost/latency tables.",
+    "Implement 'Autonomous Actions' with a live feed.",
+    "Implement 'Optimization Log' with token before/after comparison.",
+    "Implement 'Playground' for testing completions and seeing cache hits.",
+    "Use Phosphor icons (yarn add @phosphor-icons/react).",
+    "Use Recharts for all charts (Shadcn charts).",
+    "Apply 'Grid Borders' layout to make the dashboard feel like a dense, technical control room.",
+    "Avoid generic Tailwind colors; stick to the defined grayscale (zinc) and white.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Import Google Fonts specified in typography.font_imports into index.css or equivalent.",
+    "Update tailwind.config.js to include the custom colors and font families."
+  ]
+}
