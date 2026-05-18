@@ -1,53 +1,37 @@
-import { useEffect } from "react";
-import "@/App.css";
+import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+import Layout from "./components/Layout";
+import Overview from "./pages/Overview";
+import Routing from "./pages/Routing";
+import Cache from "./pages/Cache";
+import Budgets from "./pages/Budgets";
+import Forecasting from "./pages/Forecasting";
+import Recommendations from "./pages/Recommendations";
+import Providers from "./pages/Providers";
+import Actions from "./pages/Actions";
+import OptimizationLog from "./pages/OptimizationLog";
+import Playground from "./pages/Playground";
+import { Toaster } from "sonner";
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <BrowserRouter>
+      <Toaster theme="dark" position="bottom-right" />
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<Overview />} />
+          <Route path="/routing" element={<Routing />} />
+          <Route path="/cache" element={<Cache />} />
+          <Route path="/budgets" element={<Budgets />} />
+          <Route path="/forecasting" element={<Forecasting />} />
+          <Route path="/recommendations" element={<Recommendations />} />
+          <Route path="/providers" element={<Providers />} />
+          <Route path="/actions" element={<Actions />} />
+          <Route path="/optimization" element={<OptimizationLog />} />
+          <Route path="/playground" element={<Playground />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }
 
