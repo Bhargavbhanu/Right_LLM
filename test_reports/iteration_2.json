@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 2 testing complete for Right LLM. Backend: 26/26 pytest tests pass — covers all 6 new features (providers: 7/15, TIPE rca_summary + classification, Migration verdict logic, Best-Model across 4 objectives, multi-turn LLM context recall 'Sarah', SSE stream emits meta+token+done events) plus regression on all iteration-1 endpoints. Routing engine correctly excludes unconfigured groq/ollama/bedrock/azure providers across 5 varied prompts. Frontend: all 12 sidebar nav items load with no console errors. TIPE Analyzer renders cost-summary cards + 15-row sorted bar chart/table + highlighted recommendation. Advisor Tools — Migration Simulation produces verdict badge + 3 delta tiles + summary; AI Model Advisor produces recommended + 5 alternates. Provider Analytics shows 7 cards + 15-row model table.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/providers/health", "issue": "Response field is `id` not `provider` in providers[] (inconsistent with models[] which uses `provider`). Cosmetic — frontend handles both fine."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/providers (Provider Analytics)", "issues": ["FIXED by tester: HEALTH map in Providers.jsx had no `unconfigured` entry, so Groq/Ollama/Bedrock/Azure all showed green-dot 'HEALTHY' instead of grey 'UNCONFIGURED'. Added unconfigured key — now displays correctly."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration_2.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py L660-683 — /api/gateway/stream is fake streaming: it awaits the full gateway_chat() response, then chunks the final text. Real token-by-token streaming would require emergentintegrations stream support. Acceptable as a UI demo but should be flagged in product docs / not promised as 'real LLM streaming' to enterprise buyers.",
+    "server.py L527 — TIPE baseline fallback `PROVIDER_CATALOG[1]` is positional; if catalog reorders, default baseline silently changes. Use a named lookup instead.",
+    "server.py L644 — advisor_best_model sorts by (-affordable, -score) — when ALL candidates are unaffordable the API still returns top by score. That's reasonable but `affordable=false` should probably be surfaced in reasoning text so the UI can warn.",
+    "server.py imports `StreamingResponse`, `asyncio`, `json as jsonlib` mid-file (L660-662) — should be hoisted to top of module per PEP 8.",
+    "engines.py select_model() should log when configurable providers are skipped due to missing keys (currently silent — makes debugging routing-decisions opaque).",
+    "Providers.jsx (FIXED) — HEALTH map must enumerate all backend states; defensive default to 'unknown' would have caught this earlier."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/frontend/src/pages/Providers.jsx"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% (12/12 routes load, both new pages e2e working)"},
+  "test_credentials": "none required (no auth in MVP)",
+  "seed_data_creation": "Auto-seeded by backend startup hook with 15 models, 7 providers, ~2300 historical requests, 4 recommendations, 5 budgets, 4 actions. No additional seed needed for iteration 2.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "backend_test.py at /app/backend/tests/backend_test.py is the canonical regression suite — 26 tests, ~6s total runtime, covers all endpoints including real-LLM multi-turn + SSE. SSE test uses requests stream=True and iter_lines. TIPE/Advisor frontend pages have stable data-testids (tipe-task-*, tipe-baseline, tipe-volume, tipe-run, tipe-result, migration-card, mig-from/to/volume/run/result, advisor-card, adv-objective/task/budget/run/result). Backend `providers[].id` uses key `id` (not `provider`); models[] uses key `provider`.",
+  "rca of the issue": "Providers.jsx HEALTH map was a closed enum {healthy, degraded, down} with `|| HEALTH.healthy` fallback. Backend returns health='unconfigured' for groq/ollama/bedrock/azure (correct per spec since EMERGENT_LLM_KEY only covers openai/anthropic/gemini). The fallback silently mapped 'unconfigured' → green Healthy dot, hiding the unconfigured state from operators. Fix: add `unconfigured: { color: '#71717A', label: 'Unconfigured' }` entry. Verified in UI — Groq/Ollama/Bedrock/Azure now show grey dot + 'UNCONFIGURED' label."
+}

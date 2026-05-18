@@ -19,6 +19,10 @@ export const getOptimizationLog = (limit = 100) => api.get(`/optimization/log`, 
 export const postGatewayChat = (body) => api.post(`/gateway/chat`, body).then(r => r.data);
 export const postRoutingDecision = (body) => api.post(`/routing/decision`, body).then(r => r.data);
 export const postCacheSearch = (body) => api.post(`/cache/search`, body).then(r => r.data);
+export const postTipeAnalyze = (body) => api.post(`/tipe/analyze`, body).then(r => r.data);
+export const postAdvisorMigration = (body) => api.post(`/advisor/migration`, body).then(r => r.data);
+export const postAdvisorBestModel = (body) => api.post(`/advisor/best-model`, body).then(r => r.data);
+export const STREAM_URL = `${API}/gateway/stream`;
 
 export const fmtUsd = (n) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: n < 10 ? 4 : 0 }).format(n || 0);

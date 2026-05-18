@@ -27,6 +27,15 @@ PROVIDER_CATALOG = [
     {"provider": "openai",    "model": "gpt-4o",                      "tier": "complex",  "in": 0.0025,   "out": 0.01,    "p95": 1100, "quality": 0.93},
     {"provider": "anthropic", "model": "claude-sonnet-4-5-20250929",  "tier": "complex",  "in": 0.003,    "out": 0.015,   "p95": 1250, "quality": 0.95},
     {"provider": "anthropic", "model": "claude-opus-4-5-20251101",    "tier": "critical", "in": 0.015,    "out": 0.075,   "p95": 1900, "quality": 0.98},
+    # ── Configurable providers (require user-supplied keys; appear in advisor/analyzer) ──
+    {"provider": "groq",      "model": "llama-3.1-8b-instant",        "tier": "simple",   "in": 0.00005,  "out": 0.00008, "p95": 220,  "quality": 0.72, "configurable": True},
+    {"provider": "groq",      "model": "llama-3.3-70b-versatile",     "tier": "moderate", "in": 0.00059,  "out": 0.00079, "p95": 360,  "quality": 0.85, "configurable": True},
+    {"provider": "ollama",    "model": "llama3.2",                    "tier": "simple",   "in": 0.0,      "out": 0.0,     "p95": 850,  "quality": 0.74, "configurable": True},
+    {"provider": "ollama",    "model": "qwen2.5:14b",                 "tier": "moderate", "in": 0.0,      "out": 0.0,     "p95": 1400, "quality": 0.83, "configurable": True},
+    {"provider": "bedrock",   "model": "anthropic.claude-3-5-sonnet", "tier": "complex",  "in": 0.003,    "out": 0.015,   "p95": 1280, "quality": 0.95, "configurable": True},
+    {"provider": "bedrock",   "model": "meta.llama3-70b",             "tier": "moderate", "in": 0.00265,  "out": 0.0035,  "p95": 1050, "quality": 0.84, "configurable": True},
+    {"provider": "azure",     "model": "azure-gpt-4o",                "tier": "complex",  "in": 0.0025,   "out": 0.01,    "p95": 1150, "quality": 0.93, "configurable": True},
+    {"provider": "azure",     "model": "azure-gpt-4o-mini",           "tier": "simple",   "in": 0.00015,  "out": 0.0006,  "p95": 640,  "quality": 0.82, "configurable": True},
 ]
 
 TIER_ORDER = {"simple": 0, "moderate": 1, "complex": 2, "critical": 3}
@@ -146,13 +155,23 @@ def classify_task(prompt: str) -> dict:
     return {"complexity": complexity, "task": task, "estimated_tokens": tokens}
 
 
+def _provider_has_credentials(provider: str) -> bool:
+    """Check if a configurable provider has its env credentials set."""
+    import os as _os
+    env_map = {"groq": "GROQ_API_KEY", "ollama": "OLLAMA_BASE_URL",
+               "bedrock": "AWS_ACCESS_KEY_ID", "azure": "AZURE_OPENAI_API_KEY"}
+    var = env_map.get(provider)
+    return bool(var and _os.environ.get(var))
+
+
 def select_model(
     complexity: str,
     quality_floor: float = 0.78,
     excluded_models: Optional[list[str]] = None,
     excluded_providers: Optional[list[str]] = None,
 ) -> dict:
-    """Pick the cheapest model whose tier ≥ required complexity and quality ≥ floor."""
+    """Pick the cheapest model whose tier ≥ required complexity and quality ≥ floor.
+    Configurable providers (groq/ollama/bedrock/azure) are skipped unless their env key is set."""
     excluded_models = set(excluded_models or [])
     excluded_providers = set(excluded_providers or [])
     required = TIER_ORDER[complexity]
@@ -162,9 +181,11 @@ def select_model(
         and m["quality"] >= quality_floor
         and m["model"] not in excluded_models
         and m["provider"] not in excluded_providers
+        and (not m.get("configurable") or _provider_has_credentials(m["provider"]))
     ]
     if not candidates:
-        candidates = [m for m in PROVIDER_CATALOG if m["model"] not in excluded_models]
+        candidates = [m for m in PROVIDER_CATALOG if m["model"] not in excluded_models
+                      and (not m.get("configurable") or _provider_has_credentials(m["provider"]))]
     # cheapest by weighted (in*0.3 + out*0.7) since output tokens dominate cost
     candidates.sort(key=lambda m: m["in"] * 0.3 + m["out"] * 0.7)
     return candidates[0]

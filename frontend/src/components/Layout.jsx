@@ -2,7 +2,7 @@ import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutDashboard, Route as RouteIcon, Database, Wallet, LineChart,
-  Lightbulb, Server, Bot, ScrollText, Play, Sparkles,
+  Lightbulb, Server, Bot, ScrollText, Play, Sparkles, Flame,
 } from "lucide-react";
 
 const NAV = [
@@ -15,6 +15,8 @@ const NAV = [
   { to: "/providers", label: "Provider Analytics", icon: Server, testId: "nav-providers" },
   { to: "/actions", label: "Autonomous Actions", icon: Bot, testId: "nav-actions" },
   { to: "/optimization", label: "Optimization Log", icon: ScrollText, testId: "nav-optimization" },
+  { to: "/tipe", label: "TIPE Analyzer", icon: Flame, testId: "nav-tipe" },
+  { to: "/advisor", label: "Advisor Tools", icon: Sparkles, testId: "nav-advisor" },
   { to: "/playground", label: "Playground", icon: Play, testId: "nav-playground" },
 ];
 

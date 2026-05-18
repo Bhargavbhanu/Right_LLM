@@ -57,9 +57,13 @@ async def seed() -> None:
             "p95_latency_ms": m["p95"], "quality_score": m["quality"],
         })
     providers_meta = [
-        {"id": "openai",    "name": "OpenAI",    "health": "healthy", "error_rate": 0.7, "p95_latency_ms": 920},
-        {"id": "anthropic", "name": "Anthropic", "health": "healthy", "error_rate": 0.3, "p95_latency_ms": 1100},
-        {"id": "gemini",    "name": "Google Gemini", "health": "degraded", "error_rate": 2.1, "p95_latency_ms": 740},
+        {"id": "openai",    "name": "OpenAI",        "health": "healthy",     "error_rate": 0.7, "p95_latency_ms": 920,  "configurable": False},
+        {"id": "anthropic", "name": "Anthropic",     "health": "healthy",     "error_rate": 0.3, "p95_latency_ms": 1100, "configurable": False},
+        {"id": "gemini",    "name": "Google Gemini", "health": "degraded",    "error_rate": 2.1, "p95_latency_ms": 740,  "configurable": False},
+        {"id": "groq",      "name": "Groq",          "health": "unconfigured","error_rate": 0.0, "p95_latency_ms": 300,  "configurable": True},
+        {"id": "ollama",    "name": "Ollama (self-hosted)", "health": "unconfigured", "error_rate": 0.0, "p95_latency_ms": 1100, "configurable": True},
+        {"id": "bedrock",   "name": "AWS Bedrock",   "health": "unconfigured","error_rate": 0.0, "p95_latency_ms": 1200, "configurable": True},
+        {"id": "azure",     "name": "Azure OpenAI",  "health": "unconfigured","error_rate": 0.0, "p95_latency_ms": 950,  "configurable": True},
     ]
     await db.providers.insert_many(providers_meta)
 
@@ -96,9 +100,11 @@ async def seed() -> None:
         n = 60 + d + random.randint(-5, 15)
         for _ in range(n):
             prompt = random.choice(sample_prompts)
+            # Historical data uses only the 7 non-configurable providers (real LLM calls happen via these)
+            real_models = [m for m in PROVIDER_CATALOG if not m.get("configurable")]
             model = random.choices(
-                PROVIDER_CATALOG,
-                weights=[20, 18, 14, 12, 10, 8, 3],
+                real_models,
+                weights=[20, 18, 14, 12, 10, 8, 3][:len(real_models)],
                 k=1,
             )[0]
             in_tokens_raw = random.randint(120, 1400)

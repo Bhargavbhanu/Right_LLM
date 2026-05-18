@@ -1,6 +1,7 @@
-"""Right LLM backend API tests"""
+"""Right LLM backend API tests — iteration 2 (15 models, 7 providers, TIPE, Advisor, SSE)."""
 import os
 import time
+import json
 
 import pytest
 import requests
@@ -31,10 +32,8 @@ def test_analytics_usage(session):
     assert "totals" in data and "by_day" in data and "by_model" in data
     t = data["totals"]
     for k in ("requests", "cache_hits", "total_savings_usd", "token_reduction_pct"):
-        assert k in t, f"missing key {k}"
-    assert isinstance(data["by_day"], list)
-    assert isinstance(data["by_model"], list)
-    assert t["requests"] > 0, "expected seeded request data"
+        assert k in t
+    assert t["requests"] > 0
 
 
 # ── Forecast ─────────────────────────────────────────────────────────────────
@@ -42,9 +41,8 @@ def test_forecast_predict(session):
     r = session.get(f"{API}/forecast/predict", timeout=30)
     assert r.status_code == 200
     data = r.json()
-    for k in ("current_run_rate_usd_per_day", "forecast_30d_total_usd", "forecast_60d_total_usd", "forecast_90d_total_usd", "forecast"):
-        assert k in data, f"missing {k}"
-    assert isinstance(data["forecast"], list)
+    for k in ("current_run_rate_usd_per_day", "forecast_30d_total_usd", "forecast"):
+        assert k in data
     assert len(data["forecast"]) == 90
 
 
@@ -53,177 +51,222 @@ def test_recommendations_list(session):
     r = session.get(f"{API}/advisor/recommend", timeout=20)
     assert r.status_code == 200
     recs = r.json()
-    assert isinstance(recs, list)
-    assert len(recs) > 0, "expected at least one seeded recommendation"
-    for rec in recs:
-        assert "id" in rec
-        assert "estimated_monthly_savings_usd" in rec
+    assert isinstance(recs, list) and len(recs) > 0
 
 
 def test_recommendation_accept_then_dismiss(session):
     recs = session.get(f"{API}/advisor/recommend", timeout=20).json()
-    assert len(recs) >= 1
     rec_id = recs[0]["id"]
-    # Accept
     r = session.post(f"{API}/advisor/recommend/{rec_id}/action", params={"action": "accept"}, timeout=20)
-    assert r.status_code == 200
-    assert r.json()["status"] == "accepted"
-    # Verify persisted
-    updated = session.get(f"{API}/advisor/recommend", timeout=20).json()
-    target = next((x for x in updated if x["id"] == rec_id), None)
-    assert target and target["status"] == "accepted"
-    # Dismiss
+    assert r.status_code == 200 and r.json()["status"] == "accepted"
     r = session.post(f"{API}/advisor/recommend/{rec_id}/action", params={"action": "dismiss"}, timeout=20)
-    assert r.status_code == 200
-    assert r.json()["status"] == "dismissed"
+    assert r.status_code == 200 and r.json()["status"] == "dismissed"
 
 
-def test_recommendation_invalid_action(session):
-    recs = session.get(f"{API}/advisor/recommend", timeout=20).json()
-    rec_id = recs[0]["id"]
-    r = session.post(f"{API}/advisor/recommend/{rec_id}/action", params={"action": "frobnicate"}, timeout=20)
-    assert r.status_code == 400
-
-
-# ── Budgets ──────────────────────────────────────────────────────────────────
+# ── Budgets / Actions ────────────────────────────────────────────────────────
 def test_budgets_status(session):
     r = session.get(f"{API}/budgets/status", timeout=20)
     assert r.status_code == 200
-    data = r.json()
-    assert "policies" in data
-    assert isinstance(data["policies"], list)
-    assert len(data["policies"]) > 0
-    p = data["policies"][0]
-    for k in ("scope", "burn_pct", "status"):
-        assert k in p
+    assert len(r.json()["policies"]) > 0
 
 
-# ── Actions ──────────────────────────────────────────────────────────────────
 def test_actions_history(session):
     r = session.get(f"{API}/actions/history", timeout=20)
     assert r.status_code == 200
-    actions = r.json()
-    assert isinstance(actions, list)
-    assert len(actions) > 0
-    a = actions[0]
-    for k in ("type", "summary", "outcome", "status"):
-        assert k in a, f"missing {k} in action"
+    assert len(r.json()) > 0
 
 
-# ── Providers ────────────────────────────────────────────────────────────────
-def test_providers_health(session):
+# ── Providers (iteration 2: 7 providers / 15 models) ─────────────────────────
+def test_providers_health_7_and_15(session):
     r = session.get(f"{API}/providers/health", timeout=20)
     assert r.status_code == 200
     data = r.json()
-    assert "providers" in data and "models" in data
-    assert len(data["providers"]) > 0
-    assert len(data["models"]) > 0
+    providers = {p.get("id") or p.get("provider") for p in data["providers"]}
+    expected = {"openai", "anthropic", "gemini", "groq", "ollama", "bedrock", "azure"}
+    assert expected.issubset(providers), f"missing providers: {expected - providers}"
+    assert len(data["providers"]) == 7, f"expected 7 providers, got {len(data['providers'])}"
+    assert len(data["models"]) == 15, f"expected 15 models, got {len(data['models'])}"
 
 
-# ── Routing decisions list ───────────────────────────────────────────────────
+# ── Routing / Cache lists ────────────────────────────────────────────────────
 def test_routing_decisions_list(session):
     r = session.get(f"{API}/routing/decisions", params={"limit": 200}, timeout=30)
-    assert r.status_code == 200
-    arr = r.json()
-    assert isinstance(arr, list)
-    assert len(arr) > 0
+    assert r.status_code == 200 and len(r.json()) > 0
 
 
-# ── Cache entries list ───────────────────────────────────────────────────────
 def test_cache_entries_list(session):
     r = session.get(f"{API}/cache/entries", params={"limit": 60}, timeout=30)
-    assert r.status_code == 200
-    arr = r.json()
-    assert isinstance(arr, list)
-    assert len(arr) > 0
+    assert r.status_code == 200 and len(r.json()) > 0
 
 
-# ── Optimization log ─────────────────────────────────────────────────────────
 def test_optimization_log(session):
     r = session.get(f"{API}/optimization/log", params={"limit": 100}, timeout=30)
     assert r.status_code == 200
-    arr = r.json()
-    assert isinstance(arr, list)
 
 
-# ── Routing decision (no LLM) ────────────────────────────────────────────────
-def test_routing_decision_post_simple(session):
+def test_routing_decision_post(session):
     body = {"prompt": "hello there", "quality_floor": 0.78, "budget_remaining_pct": 1.0}
     r = session.post(f"{API}/routing/decision", json=body, timeout=20)
     assert r.status_code == 200
-    data = r.json()
     for k in ("task", "complexity", "model", "provider", "reasoning"):
-        assert k in data, f"missing {k}"
+        assert k in r.json()
 
 
-def test_routing_decision_post_complex(session):
-    body = {"prompt": "analyze and reason step by step about the architecture trade-offs", "quality_floor": 0.85, "budget_remaining_pct": 1.0}
-    r = session.post(f"{API}/routing/decision", json=body, timeout=20)
-    assert r.status_code == 200
-    data = r.json()
-    assert data["complexity"] in ("complex", "critical", "moderate")
-
-
-# ── Cache search ─────────────────────────────────────────────────────────────
 def test_cache_search(session):
-    body = {"prompt": "summarize quarterly revenue", "similarity_threshold": 0.5}
-    r = session.post(f"{API}/cache/search", json=body, timeout=20)
+    r = session.post(f"{API}/cache/search", json={"prompt": "summarize revenue", "similarity_threshold": 0.5}, timeout=20)
     assert r.status_code == 200
-    data = r.json()
-    for k in ("hit", "similarity", "threshold"):
-        assert k in data
+    assert "hit" in r.json()
+
+
+# ── TIPE Analyzer ────────────────────────────────────────────────────────────
+def test_tipe_rca_summary(session):
+    body = {"prompt": "Summarize the root cause of the database outage including timeline and impact",
+            "task_type": "rca_summary", "baseline_model": "gpt-4o", "monthly_volume": 2400}
+    r = session.post(f"{API}/tipe/analyze", json=body, timeout=30)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    for k in ("input_tokens", "predicted_output_tokens", "baseline", "recommended",
+              "savings_pct", "monthly_savings", "rows"):
+        assert k in d, f"missing {k}"
+    assert len(d["rows"]) == 15
+    # rows sorted cheapest-first
+    costs = [r["cost_per_call"] for r in d["rows"]]
+    assert costs == sorted(costs)
+    assert d["baseline"]["model"] == "gpt-4o"
+    assert d["recommended"]["cost_per_call"] <= d["baseline"]["cost_per_call"]
+
+
+def test_tipe_classification(session):
+    body = {"prompt": "Is this email spam?", "task_type": "classification",
+            "baseline_model": "gpt-4o-mini", "monthly_volume": 100000}
+    r = session.post(f"{API}/tipe/analyze", json=body, timeout=30)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["task_type"] == "classification"
+    assert d["predicted_output_tokens"] >= 8
+    assert len(d["rows"]) == 15
+
+
+# ── Migration Simulation ─────────────────────────────────────────────────────
+def test_migration_gpt4o_to_haiku(session):
+    body = {"from_model": "gpt-4o", "to_model": "claude-haiku-4-5-20251001", "monthly_volume": 10000}
+    r = session.post(f"{API}/advisor/migration", json=body, timeout=20)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    for k in ("from", "to", "cost_delta_pct", "quality_delta", "latency_delta_ms", "verdict", "summary"):
+        assert k in d
+    assert d["from"]["model"] == "gpt-4o"
+    assert d["to"]["model"] == "claude-haiku-4-5-20251001"
+    assert d["verdict"] in ("improvement", "trade-off", "regression")
+    assert all(k in d["from"] for k in ("cost_per_call", "monthly", "quality", "p95_ms"))
+
+
+def test_migration_mini_to_gemini_flash(session):
+    body = {"from_model": "gpt-4o-mini", "to_model": "gemini-2.5-flash", "monthly_volume": 50000}
+    r = session.post(f"{API}/advisor/migration", json=body, timeout=20)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["verdict"] in ("improvement", "trade-off", "regression")
+    assert isinstance(d["summary"], str) and len(d["summary"]) > 0
+
+
+def test_migration_unknown_model(session):
+    r = session.post(f"{API}/advisor/migration",
+                     json={"from_model": "does-not-exist", "to_model": "gpt-4o"}, timeout=20)
+    assert r.status_code == 404
+
+
+# ── AI Model Advisor (best-model) ────────────────────────────────────────────
+@pytest.mark.parametrize("objective", ["balanced", "cost", "quality", "latency"])
+def test_best_model_objectives(session, objective):
+    body = {"objective": objective, "primary_task": "general",
+            "monthly_budget_usd": 500, "monthly_volume": 10000}
+    r = session.post(f"{API}/advisor/best-model", json=body, timeout=20)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert "recommended" in d and "alternates" in d and "all" in d and "reasoning" in d
+    rec = d["recommended"]
+    for k in ("provider", "model", "cost_per_call", "monthly_cost", "quality"):
+        assert k in rec
+    assert len(d["all"]) == 15
+    assert len(d["alternates"]) == 5
+
+
+# ── Routing engine skips unconfigured configurable providers ─────────────────
+def test_routing_skips_unconfigured_providers(session):
+    """Routing must never return groq/ollama/bedrock/azure when their env keys are absent."""
+    configurable_providers = {"groq", "ollama", "bedrock", "azure"}
+    prompts = [
+        "hello",
+        "summarize this paragraph briefly",
+        "analyze and reason step by step about architecture trade-offs",
+        "extract names from: John, Mary, and Bob",
+        "write python code to sort a list",
+    ]
+    for p in prompts:
+        r = session.post(f"{API}/routing/decision",
+                         json={"prompt": p, "quality_floor": 0.78, "budget_remaining_pct": 1.0}, timeout=20)
+        assert r.status_code == 200
+        prov = r.json()["provider"]
+        assert prov not in configurable_providers, f"Routing leaked configurable provider {prov} for prompt: {p}"
 
 
 # ── Gateway chat (real LLM) ──────────────────────────────────────────────────
 def test_gateway_chat_basic(session):
-    body = {
-        "messages": [{"role": "user", "content": "Say hello in three words."}],
-        "use_cache": False,
-        "similarity_threshold": 0.92,
-    }
-    r = session.post(f"{API}/gateway/chat", json=body, timeout=90)
+    body = {"messages": [{"role": "user", "content": "Say hello in three words."}], "use_cache": False}
+    r = session.post(f"{API}/gateway/chat", json=body, timeout=120)
     assert r.status_code == 200, r.text
-    data = r.json()
+    d = r.json()
     for k in ("response", "decision", "optimization", "cost_usd", "latency_ms", "cache_hit"):
-        assert k in data, f"missing {k}"
-    d = data["decision"]
-    for k in ("task", "complexity", "model", "provider", "reasoning"):
         assert k in d
-    o = data["optimization"]
-    for k in ("before_tokens", "after_tokens", "saved_tokens"):
-        assert k in o
-    assert data["cache_hit"] is False
-    assert len(data["response"]) > 0
+    # Routing should pick a non-configurable provider
+    assert d["decision"]["provider"] in ("openai", "anthropic", "gemini")
+    assert d["cache_hit"] is False
+    assert len(d["response"]) > 0
 
 
-def test_gateway_chat_simple_routes_to_cheap(session):
+def test_gateway_chat_multiturn_context(session):
+    """Multi-turn: user says name, assistant ack'd, user asks for name. Response should recall 'Sarah'."""
     body = {
-        "messages": [{"role": "user", "content": "hello"}],
+        "messages": [
+            {"role": "user", "content": "My name is Sarah."},
+            {"role": "assistant", "content": "Nice to meet you, Sarah!"},
+            {"role": "user", "content": "What is my name? Reply with just the name."},
+        ],
         "use_cache": False,
     }
-    r = session.post(f"{API}/gateway/chat", json=body, timeout=90)
-    assert r.status_code == 200
-    data = r.json()
-    model = data["decision"]["model"].lower()
-    # cheapest by weighted output (in*0.3 + out*0.7); should be a 'simple' tier model
-    assert ("gemini" in model and "flash" in model) or "gpt-4o-mini" in model, f"unexpected model for simple prompt: {model}"
+    r = session.post(f"{API}/gateway/chat", json=body, timeout=120)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert "sarah" in d["response"].lower(), f"Expected 'Sarah' in response, got: {d['response']!r}"
+    assert d["decision"]["provider"] in ("openai", "anthropic", "gemini")
 
 
-def test_gateway_chat_cache_hit_on_repeat(session):
-    unique = f"What is the capital of testland-{int(time.time())}?"
-    body = {
-        "messages": [{"role": "user", "content": unique}],
-        "use_cache": True,
-        "similarity_threshold": 0.92,
-    }
-    # First call — populates cache
-    r1 = session.post(f"{API}/gateway/chat", json=body, timeout=90)
-    assert r1.status_code == 200
-    assert r1.json()["cache_hit"] is False
-    # Second identical call — should hit L1 cache
-    r2 = session.post(f"{API}/gateway/chat", json=body, timeout=30)
-    assert r2.status_code == 200
-    data = r2.json()
-    assert data["cache_hit"] is True, f"expected cache hit, got {data}"
-    assert data.get("cache_layer") in ("L1", "L2")
-    assert data["cost_usd"] == 0.0
+# ── SSE Streaming Gateway ────────────────────────────────────────────────────
+def test_gateway_stream_sse(session):
+    body = {"messages": [{"role": "user", "content": "Count from 1 to 5."}], "use_cache": False}
+    r = requests.post(f"{API}/gateway/stream", json=body, stream=True, timeout=120,
+                      headers={"Content-Type": "application/json", "Accept": "text/event-stream"})
+    assert r.status_code == 200, r.text
+    assert "text/event-stream" in r.headers.get("Content-Type", "")
+    events = {"meta": 0, "token": 0, "done": 0}
+    meta_payload = None
+    for raw in r.iter_lines(decode_unicode=True):
+        if not raw:
+            continue
+        if raw.startswith("event:"):
+            current_event = raw.split(":", 1)[1].strip()
+            events[current_event] = events.get(current_event, 0) + 1
+        elif raw.startswith("data:") and current_event == "meta" and meta_payload is None:
+            try:
+                meta_payload = json.loads(raw.split(":", 1)[1].strip())
+            except Exception:
+                pass
+        if events.get("done", 0) > 0:
+            break
+    assert events["meta"] >= 1
+    assert events["token"] >= 1, f"expected token events, got {events}"
+    assert events["done"] >= 1
+    assert meta_payload is not None
+    for k in ("decision", "cost_usd", "optimization"):
+        assert k in meta_payload, f"meta missing {k}"

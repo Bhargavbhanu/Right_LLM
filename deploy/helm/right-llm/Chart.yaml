@@ -1,0 +1,9 @@
+apiVersion: v2
+name: right-llm
+description: Right LLM — enterprise LLM cost-optimization gateway
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords: [llm, gateway, cost-optimization, ai, saas]
+maintainers:
+  - name: Right LLM Team

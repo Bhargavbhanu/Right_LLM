@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: right-llm-frontend
+  labels: { app: right-llm, component: frontend }
+spec:
+  replicas: {{ .Values.replicaCount.frontend }}
+  selector:
+    matchLabels: { app: right-llm, component: frontend }
+  template:
+    metadata:
+      labels: { app: right-llm, component: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.image.repository }}/{{ .Values.image.frontend }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 3000
+          resources:
+            {{- toYaml .Values.resources.frontend | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: right-llm-frontend
+spec:
+  type: {{ .Values.service.frontend.type }}
+  selector: { app: right-llm, component: frontend }
+  ports:
+    - port: {{ .Values.service.frontend.port }}
+      targetPort: 3000

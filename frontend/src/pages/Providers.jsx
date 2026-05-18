@@ -3,9 +3,10 @@ import PageHeader from "../components/PageHeader";
 import { getProviders } from "../lib/api";
 
 const HEALTH = {
-  healthy:  { color: "#22C55E", label: "Healthy" },
-  degraded: { color: "#EAB308", label: "Degraded" },
-  down:     { color: "#EF4444", label: "Down" },
+  healthy:      { color: "#22C55E", label: "Healthy" },
+  degraded:     { color: "#EAB308", label: "Degraded" },
+  down:         { color: "#EF4444", label: "Down" },
+  unconfigured: { color: "#71717A", label: "Unconfigured" },
 };
 
 export default function Providers() {

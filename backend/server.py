@@ -71,13 +71,47 @@ class CacheSearchRequest(BaseModel):
 
 
 # ─── LLM call ──────────────────────────────────────────────────────────────
-async def call_llm(provider: str, model: str, system: str, user_text: str) -> dict:
-    """Real LLM call via emergentintegrations."""
+CONFIGURABLE_PROVIDERS = {"groq", "ollama", "bedrock", "azure"}
+
+
+def _is_configurable(provider: str) -> bool:
+    return provider in CONFIGURABLE_PROVIDERS
+
+
+def _format_history(messages: list[dict]) -> tuple[str, str]:
+    """Return (system_message, multi_turn_user_text) compatible with LlmChat."""
+    system = next((m["content"] for m in messages if m["role"] == "system"), "")
+    convo = [m for m in messages if m["role"] != "system"]
+    if len(convo) <= 1:
+        return system, convo[-1]["content"] if convo else ""
+    # Bake prior turns into the user text so the single-turn LlmChat sees full context.
+    lines = ["Previous conversation:"]
+    for m in convo[:-1]:
+        role = "USER" if m["role"] == "user" else "ASSISTANT"
+        lines.append(f"{role}: {m['content']}")
+    lines.append("")
+    lines.append(f"Current message: {convo[-1]['content']}")
+    return system, "\n".join(lines)
+
+
+async def call_llm(provider: str, model: str, messages: list[dict]) -> dict:
+    """Real LLM call via emergentintegrations. Supports multi-turn."""
+    if _is_configurable(provider):
+        env_var = {"groq": "GROQ_API_KEY", "ollama": "OLLAMA_BASE_URL",
+                   "bedrock": "AWS_ACCESS_KEY_ID", "azure": "AZURE_OPENAI_API_KEY"}[provider]
+        if not os.environ.get(env_var):
+            raise HTTPException(
+                status_code=501,
+                detail=f"Provider '{provider}' requires {env_var}. Configure the key in backend/.env to enable live calls. It still appears in routing, analyzer and advisor based on its published pricing.",
+            )
+        raise HTTPException(status_code=501, detail=f"Provider '{provider}' adapter not wired in MVP.")
+
     from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     api_key = os.environ.get("EMERGENT_LLM_KEY")
     if not api_key:
         raise RuntimeError("EMERGENT_LLM_KEY not configured")
+    system, user_text = _format_history(messages)
     chat = LlmChat(
         api_key=api_key,
         session_id=str(uuid.uuid4()),
@@ -102,7 +136,10 @@ async def gateway_chat(req: ChatRequest) -> dict[str, Any]:
 
     # 2. Optimization
     opt = optimize_prompt(raw_prompt)
-    _ = prune_messages([m.model_dump() for m in req.messages])  # reserved for future multi-turn
+    pruned_messages = prune_messages([m.model_dump() for m in req.messages])
+    # Rewrite the last user message to be the optimized version for the LLM call.
+    if pruned_messages and pruned_messages[-1]["role"] == "user":
+        pruned_messages[-1] = {**pruned_messages[-1], "content": opt["compressed"]}
 
     # 3. Semantic cache lookup
     cache_hit = None
@@ -168,7 +205,7 @@ async def gateway_chat(req: ChatRequest) -> dict[str, Any]:
 
     # 7. Real LLM call
     try:
-        llm_out = await call_llm(model["provider"], model["model"], system_msg, opt["compressed"])
+        llm_out = await call_llm(model["provider"], model["model"], pruned_messages)
         response_text = llm_out["text"]
         provider_latency = llm_out["latency_ms"]
         status = "ok"
@@ -460,6 +497,190 @@ async def routing_decisions_list(org_id: str = DEFAULT_ORG, limit: int = 200) ->
 async def cache_entries_list(org_id: str = DEFAULT_ORG, limit: int = 100) -> list:
     entries = await db.cache_entries.find({"org_id": org_id}, {"_id": 0, "embedding": 0}).sort("hit_count", -1).to_list(limit)
     return entries
+
+
+# ─── TIPE Analyzer ─────────────────────────────────────────────────────────
+# Token & cost prediction across the full provider catalog for a given prompt.
+EXPECTED_OUTPUT_RATIO = {
+    "rca_summary":      2.5,   # short structured output
+    "summarization":    0.6,
+    "classification":   0.08,
+    "extraction":       0.4,
+    "code_generation":  4.0,
+    "qa":               1.8,
+    "general":          1.5,
+}
+
+
+class TipeRequest(BaseModel):
+    prompt: str
+    task_type: str = "general"
+    baseline_model: str = "gpt-4o-mini"
+    monthly_volume: int = 2400
+
+
+@api.post("/tipe/analyze")
+async def tipe_analyze(req: TipeRequest) -> dict:
+    in_tokens = estimate_tokens(req.prompt)
+    ratio = EXPECTED_OUTPUT_RATIO.get(req.task_type, 1.5)
+    out_tokens = max(8, int(in_tokens * ratio))
+    baseline = next((m for m in PROVIDER_CATALOG if m["model"] == req.baseline_model), PROVIDER_CATALOG[1])
+    baseline_per_call = estimate_cost(in_tokens, out_tokens, baseline)
+    rows = []
+    for m in PROVIDER_CATALOG:
+        per_call = estimate_cost(in_tokens, out_tokens, m)
+        monthly = per_call * req.monthly_volume
+        rows.append({
+            "provider": m["provider"],
+            "model": m["model"],
+            "tier": m["tier"],
+            "quality": m["quality"],
+            "p95_latency_ms": m["p95"],
+            "cost_per_call": round(per_call, 6),
+            "monthly_cost": round(monthly, 4),
+            "configurable": m.get("configurable", False),
+        })
+    rows.sort(key=lambda r: r["cost_per_call"])
+    # Recommend cheapest that keeps quality within 0.05 of baseline
+    candidates = [r for r in rows if r["quality"] >= baseline["quality"] - 0.05 and r["cost_per_call"] < baseline_per_call]
+    recommended = candidates[0] if candidates else rows[0]
+    savings_per_call = max(0.0, baseline_per_call - recommended["cost_per_call"])
+    return {
+        "input_tokens": in_tokens,
+        "predicted_output_tokens": out_tokens,
+        "task_type": req.task_type,
+        "monthly_volume": req.monthly_volume,
+        "baseline": {"provider": baseline["provider"], "model": baseline["model"],
+                     "cost_per_call": round(baseline_per_call, 6),
+                     "monthly_cost": round(baseline_per_call * req.monthly_volume, 4)},
+        "recommended": recommended,
+        "savings_per_call": round(savings_per_call, 6),
+        "monthly_savings": round(savings_per_call * req.monthly_volume, 4),
+        "savings_pct": round((savings_per_call / baseline_per_call) if baseline_per_call > 0 else 0, 4),
+        "rows": rows,
+    }
+
+
+# ─── Migration Simulation ──────────────────────────────────────────────────
+class MigrationRequest(BaseModel):
+    from_model: str
+    to_model: str
+    monthly_volume: int = 10000
+    avg_input_tokens: int = 400
+    avg_output_tokens: int = 250
+
+
+@api.post("/advisor/migration")
+async def advisor_migration(req: MigrationRequest) -> dict:
+    src = next((m for m in PROVIDER_CATALOG if m["model"] == req.from_model), None)
+    dst = next((m for m in PROVIDER_CATALOG if m["model"] == req.to_model), None)
+    if not src or not dst:
+        raise HTTPException(404, "Unknown model")
+    src_cpc = estimate_cost(req.avg_input_tokens, req.avg_output_tokens, src)
+    dst_cpc = estimate_cost(req.avg_input_tokens, req.avg_output_tokens, dst)
+    cost_delta = dst_cpc - src_cpc
+    pct = (cost_delta / src_cpc) if src_cpc > 0 else 0
+    quality_delta = dst["quality"] - src["quality"]
+    latency_delta = dst["p95"] - src["p95"]
+    monthly_src = src_cpc * req.monthly_volume
+    monthly_dst = dst_cpc * req.monthly_volume
+    verdict = "improvement" if (cost_delta < 0 and quality_delta >= -0.03) else (
+        "trade-off" if cost_delta < 0 else "regression"
+    )
+    return {
+        "from": {"provider": src["provider"], "model": src["model"],
+                 "cost_per_call": round(src_cpc, 6), "monthly": round(monthly_src, 2),
+                 "quality": src["quality"], "p95_ms": src["p95"]},
+        "to": {"provider": dst["provider"], "model": dst["model"],
+               "cost_per_call": round(dst_cpc, 6), "monthly": round(monthly_dst, 2),
+               "quality": dst["quality"], "p95_ms": dst["p95"]},
+        "cost_delta_per_call": round(cost_delta, 6),
+        "cost_delta_pct": round(pct, 4),
+        "monthly_savings": round(monthly_src - monthly_dst, 2),
+        "quality_delta": round(quality_delta, 4),
+        "latency_delta_ms": latency_delta,
+        "verdict": verdict,
+        "summary": (
+            f"Switching {src['model']} → {dst['model']} for {req.monthly_volume:,}/mo "
+            f"changes cost by {pct*100:+.1f}% "
+            f"(${monthly_src - monthly_dst:+,.2f}/mo), quality by {quality_delta*100:+.1f} points, "
+            f"P95 latency by {latency_delta:+d}ms. Verdict: {verdict}."
+        ),
+    }
+
+
+# ─── AI Model Advisor (best-model picker) ──────────────────────────────────
+class AdvisorRequest(BaseModel):
+    objective: str = "balanced"        # balanced | cost | quality | latency
+    primary_task: str = "general"      # maps to TASK_TYPES + extras
+    monthly_budget_usd: float = 500
+    monthly_volume: int = 10000
+    avg_input_tokens: int = 400
+    avg_output_tokens: int = 250
+
+
+@api.post("/advisor/best-model")
+async def advisor_best_model(req: AdvisorRequest) -> dict:
+    candidates = []
+    for m in PROVIDER_CATALOG:
+        cpc = estimate_cost(req.avg_input_tokens, req.avg_output_tokens, m)
+        monthly = cpc * req.monthly_volume
+        affordable = monthly <= req.monthly_budget_usd
+        if req.objective == "cost":
+            score = -cpc * 1000
+        elif req.objective == "quality":
+            score = m["quality"] * 10 - cpc * 100
+        elif req.objective == "latency":
+            score = -m["p95"] / 100 + m["quality"]
+        else:  # balanced
+            score = m["quality"] * 5 - cpc * 200 - m["p95"] / 1000
+        candidates.append({
+            "provider": m["provider"], "model": m["model"], "tier": m["tier"],
+            "quality": m["quality"], "p95_ms": m["p95"],
+            "cost_per_call": round(cpc, 6), "monthly_cost": round(monthly, 2),
+            "affordable": affordable, "score": round(score, 4),
+            "configurable": m.get("configurable", False),
+        })
+    candidates.sort(key=lambda c: (-c["affordable"], -c["score"]))
+    top = candidates[0]
+    reasoning_parts = [
+        f"Objective '{req.objective}' on task '{req.primary_task}'.",
+        f"Budget ${req.monthly_budget_usd}/mo at {req.monthly_volume:,} calls/mo.",
+        f"Recommended {top['provider']}/{top['model']} — quality {top['quality']}, ${top['cost_per_call']:.5f}/call, ${top['monthly_cost']:.2f}/mo.",
+    ]
+    return {
+        "recommended": top,
+        "alternates": candidates[1:6],
+        "reasoning": " ".join(reasoning_parts),
+        "all": candidates,
+    }
+
+
+# ─── Streaming Gateway (chunked SSE) ───────────────────────────────────────
+from fastapi.responses import StreamingResponse
+import asyncio
+import json as jsonlib
+
+
+@api.post("/gateway/stream")
+async def gateway_stream(req: ChatRequest):
+    """SSE endpoint — emits the final LLM response as token-like chunks plus a final event with cost/decision."""
+    result = await gateway_chat(req)
+
+    async def event_gen():
+        # Emit metadata first
+        meta = {k: v for k, v in result.items() if k != "response"}
+        yield f"event: meta\ndata: {jsonlib.dumps(meta)}\n\n"
+        # Stream the response in chunks
+        text = result.get("response") or ""
+        chunk_size = 24
+        for i in range(0, len(text), chunk_size):
+            chunk = text[i:i + chunk_size]
+            yield f"event: token\ndata: {jsonlib.dumps({'text': chunk})}\n\n"
+            await asyncio.sleep(0.04)
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 @api.get("/")
