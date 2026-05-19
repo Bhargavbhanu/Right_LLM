@@ -466,7 +466,8 @@ async def budgets_status(org_id: str = DEFAULT_ORG) -> dict:
         elif p["scope"] == "user" and p["scope_id"] in users:
             name = users[p["scope_id"]]["email"]
         elif p["scope"] == "org":
-            name = "Acme Corp"
+            org_name_map = {"org_acme": "CloudScore", "org_globex": "MutexCorp", "org_initech": "ExcelHire"}
+            name = org_name_map.get(p["scope_id"], p["scope_id"])
         used = p.get("used_usd", 0)
         limit = p.get("monthly_limit_usd", 0)
         pct = (used / limit) if limit else 0

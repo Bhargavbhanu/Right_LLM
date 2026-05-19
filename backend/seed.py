@@ -15,14 +15,14 @@ ROOT = Path(__file__).parent
 load_dotenv(ROOT / ".env")
 
 ORG_ID = "org_acme"     # default for backwards-compat
-ORG_NAME = "Acme Corp"
+ORG_NAME = "CloudScore"
 
 ORGS = [
-    {"id": "org_acme",    "name": "Acme Corp",      "plan": "Enterprise", "scale": 1.0,
+    {"id": "org_acme",    "name": "CloudScore", "plan": "Enterprise", "scale": 1.0,
      "monthly_limit": 80000,  "used_pct": 0.42},
-    {"id": "org_globex",  "name": "Globex Capital", "plan": "Enterprise", "scale": 2.4,
+    {"id": "org_globex",  "name": "MutexCorp",  "plan": "Enterprise", "scale": 2.4,
      "monthly_limit": 220000, "used_pct": 0.71},
-    {"id": "org_initech", "name": "Initech",        "plan": "Growth",     "scale": 0.35,
+    {"id": "org_initech", "name": "ExcelHire",  "plan": "Growth",     "scale": 0.35,
      "monthly_limit": 18000,  "used_pct": 0.58},
 ]
 
