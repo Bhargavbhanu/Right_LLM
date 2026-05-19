@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../compon
 import { useOrg } from "../lib/OrgContext";
 import {
   LayoutDashboard, Route as RouteIcon, Database, Wallet, LineChart,
-  Lightbulb, Server, Bot, ScrollText, Play, Flame, Sparkles, Building2,
+  Lightbulb, Server, Bot, ScrollText, Play, Flame, Sparkles, Building2, BookOpen,
 } from "lucide-react";
 
 const ITEMS = [
@@ -23,6 +23,7 @@ const ITEMS = [
   { icon: Flame, label: "TIPE Analyzer", to: "/tipe" },
   { icon: Sparkles, label: "Advisor Tools", to: "/advisor" },
   { icon: Play, label: "Playground", to: "/playground" },
+  { icon: BookOpen, label: "Guide", to: "/guide" },
 ];
 
 export default function CommandPalette({ open, onOpenChange }) {

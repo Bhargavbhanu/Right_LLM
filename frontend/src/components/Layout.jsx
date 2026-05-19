@@ -6,7 +6,7 @@ import {
 } from "./ui/select";
 import {
   LayoutDashboard, Route as RouteIcon, Database, Wallet, LineChart,
-  Lightbulb, Server, Bot, ScrollText, Play, Sparkles, Flame, Building2, Command as CmdIcon,
+  Lightbulb, Server, Bot, ScrollText, Play, Sparkles, Flame, Building2, Command as CmdIcon, BookOpen,
 } from "lucide-react";
 
 const NAV = [
@@ -22,6 +22,7 @@ const NAV = [
   { to: "/tipe", label: "TIPE Analyzer", icon: Flame, testId: "nav-tipe" },
   { to: "/advisor", label: "Advisor Tools", icon: Sparkles, testId: "nav-advisor" },
   { to: "/playground", label: "Playground", icon: Play, testId: "nav-playground" },
+  { to: "/guide", label: "Guide", icon: BookOpen, testId: "nav-guide" },
 ];
 
 export default function Layout({ onPaletteOpen }) {

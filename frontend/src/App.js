@@ -13,7 +13,9 @@ import OptimizationLog from "./pages/OptimizationLog";
 import TipeAnalyzer from "./pages/TipeAnalyzer";
 import AdvisorTools from "./pages/AdvisorTools";
 import Playground from "./pages/Playground";
+import Guide from "./pages/Guide";
 import CommandPalette from "./components/CommandPalette";
+import Chatbot from "./components/Chatbot";
 import { OrgProvider } from "./lib/OrgContext";
 import { Toaster } from "sonner";
 
@@ -24,6 +26,7 @@ function App() {
       <BrowserRouter>
         <Toaster theme="dark" position="bottom-right" />
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+        <Chatbot />
         <Routes>
           <Route element={<Layout onPaletteOpen={() => setPaletteOpen(true)} />}>
             <Route index element={<Overview />} />
@@ -38,6 +41,7 @@ function App() {
             <Route path="/tipe" element={<TipeAnalyzer />} />
             <Route path="/advisor" element={<AdvisorTools />} />
             <Route path="/playground" element={<Playground />} />
+            <Route path="/guide" element={<Guide />} />
           </Route>
         </Routes>
       </BrowserRouter>
