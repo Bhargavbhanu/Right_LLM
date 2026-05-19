@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { getRecommendations, actOnRecommendation, fmtUsd } from "../lib/api";
+import { useOrg } from "../lib/OrgContext";
 import { Button } from "../components/ui/button";
 import { Lightbulb, Check, X, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
@@ -13,9 +14,10 @@ const CATEGORY = {
 };
 
 export default function Recommendations() {
+  const { orgId } = useOrg();
   const [recs, setRecs] = useState([]);
   const load = () => getRecommendations().then(setRecs).catch(() => {});
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [orgId]);
 
   const act = async (id, action) => {
     await actOnRecommendation(id, action);

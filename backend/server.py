@@ -323,10 +323,10 @@ async def cache_search(req: CacheSearchRequest) -> dict:
 @api.get("/analytics/usage")
 async def analytics_usage(org_id: str = DEFAULT_ORG, days: int = 30) -> dict:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    usage = await db.token_usage.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(20000)
-    decisions = await db.routing_decisions.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(20000)
-    opts = await db.optimization_actions.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(20000)
-    requests = await db.requests.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(20000)
+    usage = await db.token_usage.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(200000)
+    decisions = await db.routing_decisions.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(200000)
+    opts = await db.optimization_actions.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(200000)
+    requests = await db.requests.find({"org_id": org_id, "timestamp": {"$gte": cutoff}}, {"_id": 0}).to_list(200000)
 
     total_cost = sum(u["cost_usd"] for u in usage)
     total_in = sum(u["input_tokens"] for u in usage)
@@ -334,8 +334,19 @@ async def analytics_usage(org_id: str = DEFAULT_ORG, days: int = 30) -> dict:
     cache_hits = sum(1 for r in requests if r.get("cache_hit"))
     total_reqs = len(requests)
     hit_rate = (cache_hits / total_reqs) if total_reqs else 0
-    total_savings = sum(d["savings_usd"] for d in decisions)
-    cache_savings = sum(0.012 for r in requests if r.get("cache_hit"))  # rough avg per cached call
+    # Build a map request_id → routing decision (for cache savings attribution)
+    dec_by_req = {d.get("request_id"): d for d in decisions if d.get("request_id")}
+    routing_savings = 0.0
+    cache_savings = 0.0
+    for r in requests:
+        d = dec_by_req.get(r["id"])
+        if not d:
+            continue
+        if r.get("cache_hit"):
+            cache_savings += d.get("savings_usd", 0)
+        else:
+            routing_savings += d.get("savings_usd", 0)
+    total_savings = routing_savings + cache_savings
     total_before = sum(o["before_tokens"] for o in opts) or 1
     total_after = sum(o["after_tokens"] for o in opts) or 1
     reduction = 1 - (total_after / total_before)
@@ -374,8 +385,8 @@ async def analytics_usage(org_id: str = DEFAULT_ORG, days: int = 30) -> dict:
             "cache_hits": cache_hits,
             "cache_hit_rate": round(hit_rate, 4),
             "total_cost_usd": round(total_cost, 2),
-            "total_savings_usd": round(total_savings + cache_savings, 2),
-            "routing_savings_usd": round(total_savings, 2),
+            "total_savings_usd": round(total_savings, 2),
+            "routing_savings_usd": round(routing_savings, 2),
             "cache_savings_usd": round(cache_savings, 2),
             "input_tokens": total_in,
             "output_tokens": total_out,
@@ -388,7 +399,7 @@ async def analytics_usage(org_id: str = DEFAULT_ORG, days: int = 30) -> dict:
 
 @api.get("/forecast/predict")
 async def forecast_predict(org_id: str = DEFAULT_ORG) -> dict:
-    usage = await db.token_usage.find({"org_id": org_id}, {"_id": 0}).to_list(20000)
+    usage = await db.token_usage.find({"org_id": org_id}, {"_id": 0}).to_list(200000)
     by_day: dict[str, float] = {}
     for u in usage:
         d = u["timestamp"][:10]
@@ -685,7 +696,12 @@ async def gateway_stream(req: ChatRequest):
 
 @api.get("/")
 async def root():
-    return {"service": "right-llm", "version": "0.1.0"}
+    return {"service": "right-llm", "version": "0.2.0"}
+
+
+@api.get("/orgs")
+async def list_orgs() -> list:
+    return await db.organizations.find({}, {"_id": 0}).to_list(50)
 
 
 @api.get("/health")

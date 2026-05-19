@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { getBudgets, fmtUsd, fmtPct } from "../lib/api";
+import { useOrg } from "../lib/OrgContext";
 import { Progress } from "../components/ui/progress";
 import { Badge } from "../components/ui/badge";
 import { ShieldCheck, AlertTriangle, Ban } from "lucide-react";
@@ -13,8 +14,9 @@ const STATUS_STYLES = {
 };
 
 export default function Budgets() {
+  const { orgId } = useOrg();
   const [data, setData] = useState({ policies: [] });
-  useEffect(() => { getBudgets().then(setData).catch(() => {}); }, []);
+  useEffect(() => { getBudgets().then(setData).catch(() => {}); }, [orgId]);
   const byScope = { org: [], team: [], user: [] };
   data.policies.forEach(p => byScope[p.scope]?.push(p));
 

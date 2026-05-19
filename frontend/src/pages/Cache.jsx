@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from "react";
 import PageHeader, { StatCard } from "../components/PageHeader";
 import { getUsage, getCacheEntries, postCacheSearch, fmtPct, fmtInt, fmtUsd } from "../lib/api";
+import { useOrg } from "../lib/OrgContext";
+import { downloadCsv } from "../lib/csv";
 import { Slider } from "../components/ui/slider";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import { Download } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 const TT = { contentStyle: { background: "#09090B", border: "1px solid #27272A", borderRadius: 6, fontSize: 12 } };
 
 export default function Cache() {
+  const { orgId } = useOrg();
   const [usage, setUsage] = useState(null);
   const [entries, setEntries] = useState([]);
   const [threshold, setThreshold] = useState([0.92]);
@@ -19,7 +23,7 @@ export default function Cache() {
   useEffect(() => {
     getUsage(30).then(setUsage).catch(() => {});
     getCacheEntries(60).then(setEntries).catch(() => {});
-  }, []);
+  }, [orgId]);
 
   const runProbe = async () => {
     setBusy(true);
@@ -83,9 +87,15 @@ export default function Cache() {
       </div>
 
       <div className="border border-zinc-800 rounded-md bg-zinc-950">
-        <div className="px-5 py-4 border-b border-zinc-800">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Top entries</div>
-          <div className="font-heading text-lg font-semibold mt-0.5">Most-hit cached prompts</div>
+        <div className="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Top entries</div>
+            <div className="font-heading text-lg font-semibold mt-0.5">Most-hit cached prompts</div>
+          </div>
+          <Button data-testid="export-cache" size="sm" variant="outline" className="border-zinc-700 text-xs h-8"
+            onClick={() => downloadCsv(`cache-entries-${orgId}.csv`, entries)}>
+            <Download className="w-3 h-3 mr-1.5" /> CSV
+          </Button>
         </div>
         <table className="w-full text-sm">
           <thead className="border-b border-zinc-800 text-[10px] uppercase tracking-[0.2em] text-zinc-500">

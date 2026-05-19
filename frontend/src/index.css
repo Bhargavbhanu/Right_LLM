@@ -63,6 +63,22 @@ code, .mono { font-family: 'IBM Plex Mono', monospace; }
 }
 .animate-fade-up { animation: fade-up 0.4s ease-out both; }
 
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.cursor-blink { animation: cursor-blink 1s steps(2) infinite; color: #3B82F6; }
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ticker-track {
+  animation: ticker-scroll 60s linear infinite;
+  width: max-content;
+}
+.ticker-wrap:hover .ticker-track { animation-play-state: paused; }
+
 /* Subtle grid background */
 .grid-bg {
   background-image:

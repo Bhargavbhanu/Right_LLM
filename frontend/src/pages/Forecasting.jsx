@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
 import PageHeader, { StatCard } from "../components/PageHeader";
 import { getForecast, fmtUsd } from "../lib/api";
+import { useOrg } from "../lib/OrgContext";
 import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
 const TT = { contentStyle: { background: "#09090B", border: "1px solid #27272A", borderRadius: 6, fontSize: 12 } };
 
 export default function Forecasting() {
+  const { orgId } = useOrg();
   const [d, setD] = useState(null);
-  useEffect(() => { getForecast().then(setD).catch(() => {}); }, []);
+  useEffect(() => { getForecast().then(setD).catch(() => {}); }, [orgId]);
   return (
     <div data-testid="page-forecasting">
       <PageHeader title="Forecasting" subtitle="Projected AI spend over the next 90 days with 95% confidence intervals." testId="forecasting-header" />

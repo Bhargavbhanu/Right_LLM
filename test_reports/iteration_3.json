@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 3 (multi-org enhancements) tested. Backend: 36/36 pytest pass — new /api/orgs returns 3 orgs (Acme/Globex/Initech) with plan + monthly_limit_usd, analytics correctly scoped per org (Globex requests > Acme > Initech, Globex >50k confirming to_list(200000) bump), cache_savings_usd attribution > 0 and routing+cache ≈ total. All filter endpoints (/budgets/status, /advisor/recommend, /actions/history, /routing/decisions, /cache/entries, /optimization/log, /forecast/predict) respond OK for any org_id. SSE stream regression still passes. Frontend: workspace-switcher renders with all 3 org-* options, ⌘K and 'Quick jump' both open command-palette, all 3 CSV export buttons (export-routing/cache/opt) visible, Playground pg-send → pg-stop streaming → final response with cost+latency works end-to-end, no console JS errors. LiveTicker renders 'LIVE · GATEWAY ACTIVITY' with routing decisions. localStorage key 'rightllm_org' persists selected org. CONFIRMED BUG: Overview StatCards do NOT refresh when workspace is switched (subtitle + ticker update, but $2,945/40.9%/28.0%/2 stay identical across Acme→Globex→Initech, while backend returns clearly different totals for each org).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Overview StatCards (Total Savings / Cache Hit Rate / Token Reduction / Active Actions) + Cost trend chart + Model distribution + Live feed", "issue": "Values do NOT update when workspace is switched via [data-testid=workspace-switcher]. Subtitle correctly updates from 'Acme Corp' → 'Globex Capital' → 'Initech', and the LiveTicker updates, but stat cards stay frozen at the initial org's values ($2,945 / 40.9% / 28.0% / 2). Backend analytics returns clearly distinct payloads per org (Globex ≈99K reqs vs Initech ≈14.6K reqs — verified by pytest), so this is a frontend-only reactivity issue.", "selector": "[data-testid=workspace-switcher] + Overview stat cards", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Workspace switch → Overview analytics refetch", "issue": "Overview.jsx likely missing orgId in useEffect deps, OR axios interceptor injects org_id into query string but axios cached responses by URL+default-org and never re-fires when orgId in context changes. Either Overview is not re-running getAnalytics, or AnimatedNumber stops at first non-zero value and never updates on prop change.", "affected_selectors": ["Overview stat values"]}
+    ],
+    "design_issues": [
+      {"screen": "Command Palette", "issues": ["Radix Dialog accessibility warnings: 'DialogContent requires a DialogTitle' and 'Missing Description or aria-describedby' — wrap title in VisuallyHidden or add DialogTitle. Console warnings only, doesn't break UX."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/iteration_3.xml"],
+  "action_items": [
+    "Overview.jsx — verify the useEffect that fetches analytics/forecast/recommendations has orgId in its dependency array AND that AnimatedNumber component updates target value when its prop changes (it should reset the animation, not skip if previously settled). Likely fix: add orgId to deps in Overview.jsx and ensure AnimatedNumber's useEffect re-runs on `value` prop change. Check the same pattern on Cache.jsx, Routing.jsx, Budgets.jsx, Forecasting.jsx, Recommendations.jsx, Actions.jsx, OptimizationLog.jsx — they were listed as updated but I only confirmed visually that pages render; haven't proven they refetch on org change.",
+    "CommandPalette.jsx — add a <DialogTitle> (optionally wrapped in VisuallyHidden) and aria-describedby for accessibility per Radix Dialog spec."
+  ],
+  "critical_code_review_comments": [
+    "OrgContext axios interceptor injects org_id into query+body of every request — but if frontend's API helper uses requests already-built URLs cached by React Query/SWR, the orgId change may not bust the cache key. Confirm cache keys include orgId.",
+    "server.py L324-329 — analytics_usage does 4 separate Mongo finds with to_list(200000); for org_globex (~99K rows × 4) this scans ~400K docs per request. Consider an aggregation pipeline with $match + $group to compute totals server-side instead of pulling rows into Python.",
+    "OrgContext localStorage key is 'rightllm_org' (not the documented 'rightllm_org_id') — minor; just make sure code is internally consistent.",
+    "Frontend gates on /optimization route — request mentions OptimizationLog but route is /optimization (not /optimization-log). Either fine, but ensure CommandPalette nav items use the canonical route."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (36/36)", "frontend": "~85% — all new UI elements render & wire-up works, but Overview stat cards don't react to workspace switch"},
+  "test_credentials": "none (no auth in MVP); 3 seeded orgs: org_acme/org_globex/org_initech",
+  "seed_data_creation": "Pre-seeded by backend startup; no additional seed needed.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Added 4 new pytest groups for iteration 3 (test_orgs_list_3_organizations, test_analytics_scoped_per_org_and_globex_largest, test_analytics_cache_savings_attribution, test_endpoint_respects_org_id_filter[7-parametrized]). Total now 36 tests, ~12s runtime. Frontend stat-card-reactivity bug needs targeted retest: after switching workspace, capture inner_text of the 4 stat-card value spans (not regex over full main) and compare across orgs. Use ws=page.locator('[data-testid=workspace-switcher]'); page.locator('[data-testid=org-org_globex]'). localStorage key is 'rightllm_org'.",
+  "rca of the issue": "Reproduction: 1) Load /, observe Acme stats ($2,945 / 40.9% / 28.0% / 2). 2) Click [data-testid=workspace-switcher], select [data-testid=org-org_globex]. 3) Page subtitle updates to 'Globex Capital' and LiveTicker updates, BUT the 4 StatCard numbers stay at $2,945/40.9%/28.0%/2. Globex backend returns ~$7K total_savings_usd (verified via pytest test_analytics_scoped_per_org_and_globex_largest). 4) Same when switching to Initech — stays at $2,945. Likely root cause: Overview.jsx useEffect missing orgId dep, OR AnimatedNumber memoizes initial target value and never re-animates when value prop changes. Mitigation: (a) add orgId to Overview.jsx useEffect dependency array, (b) ensure AnimatedNumber's effect depends on the incoming `value` prop and resets the animation when it changes, (c) if using React Query/SWR, include orgId in the cache key."
+}

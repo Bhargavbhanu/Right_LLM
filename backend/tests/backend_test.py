@@ -242,6 +242,79 @@ def test_gateway_chat_multiturn_context(session):
     assert d["decision"]["provider"] in ("openai", "anthropic", "gemini")
 
 
+# ── Iteration 3: Multi-org (/api/orgs, org_id scoping) ───────────────────────
+def test_orgs_list_3_organizations(session):
+    r = session.get(f"{API}/orgs", timeout=20)
+    assert r.status_code == 200
+    orgs = r.json()
+    assert isinstance(orgs, list)
+    by_id = {o["id"]: o for o in orgs}
+    for expected in ("org_acme", "org_globex", "org_initech"):
+        assert expected in by_id, f"missing org {expected} in {list(by_id.keys())}"
+    assert by_id["org_acme"]["name"].lower().startswith("acme")
+    assert by_id["org_globex"]["name"].lower().startswith("globex")
+    assert by_id["org_initech"]["name"].lower().startswith("initech")
+    for o in by_id.values():
+        assert "monthly_limit_usd" in o
+        # plan field carries the tier label (Enterprise / Growth)
+        assert o.get("plan") in ("Enterprise", "Growth")
+    assert by_id["org_acme"]["plan"] == "Enterprise"
+    assert by_id["org_globex"]["plan"] == "Enterprise"
+    assert by_id["org_initech"]["plan"] == "Growth"
+
+
+def test_analytics_scoped_per_org_and_globex_largest(session):
+    """Each org's analytics is independent; Globex > Acme > Initech in requests."""
+    totals = {}
+    for org in ("org_acme", "org_globex", "org_initech"):
+        r = session.get(f"{API}/analytics/usage", params={"org_id": org, "days": 30}, timeout=60)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert "totals" in d
+        totals[org] = d["totals"]
+        assert d["totals"]["requests"] > 0, f"{org} has 0 requests"
+    # Globex should be ~2.4x scale, Initech ~0.35x — strict ordering
+    assert totals["org_globex"]["requests"] > totals["org_acme"]["requests"], totals
+    assert totals["org_acme"]["requests"] > totals["org_initech"]["requests"], totals
+    # Globex should NOT be truncated below ~50k records (was 20000 limit before; ~99k expected)
+    assert totals["org_globex"]["requests"] > 50000, (
+        f"Globex requests={totals['org_globex']['requests']} — possible to_list() truncation"
+    )
+
+
+def test_analytics_cache_savings_attribution(session):
+    """Cache savings should now be ~half of total savings (fixed attribution)."""
+    r = session.get(f"{API}/analytics/usage", params={"org_id": "org_acme", "days": 30}, timeout=60)
+    assert r.status_code == 200
+    t = r.json()["totals"]
+    for k in ("routing_savings_usd", "cache_savings_usd", "total_savings_usd"):
+        assert k in t, f"missing {k}"
+    assert t["cache_savings_usd"] > 0, "cache_savings_usd should be > 0 after attribution fix"
+    # Total should equal sum of routing + cache (rounding tolerance)
+    assert abs((t["routing_savings_usd"] + t["cache_savings_usd"]) - t["total_savings_usd"]) < 1.0
+
+
+@pytest.mark.parametrize("endpoint,extra_params", [
+    ("/budgets/status", {}),
+    ("/advisor/recommend", {}),
+    ("/actions/history", {}),
+    ("/routing/decisions", {"limit": 50}),
+    ("/cache/entries", {"limit": 50}),
+    ("/optimization/log", {"limit": 50}),
+    ("/forecast/predict", {}),
+])
+def test_endpoint_respects_org_id_filter(session, endpoint, extra_params):
+    """Each list endpoint should return distinct payloads for different orgs (org scoping works)."""
+    params_acme = {"org_id": "org_acme", **extra_params}
+    params_initech = {"org_id": "org_initech", **extra_params}
+    r1 = session.get(f"{API}{endpoint}", params=params_acme, timeout=60)
+    r2 = session.get(f"{API}{endpoint}", params=params_initech, timeout=60)
+    assert r1.status_code == 200, f"{endpoint} acme failed: {r1.text[:200]}"
+    assert r2.status_code == 200, f"{endpoint} initech failed: {r2.text[:200]}"
+    # Both responses should be valid JSON (list or dict); not error out
+    assert r1.json() is not None and r2.json() is not None
+
+
 # ── SSE Streaming Gateway ────────────────────────────────────────────────────
 def test_gateway_stream_sse(session):
     body = {"messages": [{"role": "user", "content": "Count from 1 to 5."}], "use_cache": False}

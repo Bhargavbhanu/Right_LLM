@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
 import { getActions } from "../lib/api";
+import { useOrg } from "../lib/OrgContext";
 import { Bot, RefreshCw, ArrowDownCircle, Database, ShieldOff } from "lucide-react";
 
 const ICON = {
@@ -11,8 +12,9 @@ const ICON = {
 };
 
 export default function Actions() {
+  const { orgId } = useOrg();
   const [items, setItems] = useState([]);
-  useEffect(() => { getActions().then(setItems).catch(() => {}); }, []);
+  useEffect(() => { getActions().then(setItems).catch(() => {}); }, [orgId]);
   return (
     <div data-testid="page-actions">
       <PageHeader title="Autonomous Actions" subtitle="Monitor → Analyze → Decide → Execute. Every action is logged, reversible, and auditable." testId="actions-header" />

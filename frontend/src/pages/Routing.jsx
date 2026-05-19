@@ -1,17 +1,22 @@
 import React, { useEffect, useState } from "react";
 import PageHeader, { StatCard } from "../components/PageHeader";
 import { getRoutingDecisions, getUsage, fmtUsd, fmtInt } from "../lib/api";
+import { useOrg } from "../lib/OrgContext";
+import { downloadCsv } from "../lib/csv";
+import { Button } from "../components/ui/button";
+import { Download } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 
 const PIE = ["#FAFAFA", "#A1A1AA", "#52525B", "#3F3F46", "#27272A", "#3B82F6", "#22C55E"];
 
 export default function Routing() {
+  const { orgId } = useOrg();
   const [decisions, setDecisions] = useState([]);
   const [usage, setUsage] = useState(null);
   useEffect(() => {
     getRoutingDecisions(200).then(setDecisions).catch(() => {});
     getUsage(30).then(setUsage).catch(() => {});
-  }, []);
+  }, [orgId]);
 
   const byComplexity = decisions.reduce((acc, d) => {
     acc[d.complexity] = (acc[d.complexity] || 0) + 1; return acc;
@@ -64,7 +69,13 @@ export default function Routing() {
             <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Latest decisions</div>
             <div className="font-heading text-lg font-semibold mt-0.5">Routing decision log</div>
           </div>
-          <span className="text-xs text-zinc-500 mono">{decisions.length} entries</span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-zinc-500 mono">{decisions.length} entries</span>
+            <Button data-testid="export-routing" size="sm" variant="outline" className="border-zinc-700 text-xs h-8"
+              onClick={() => downloadCsv(`routing-decisions-${orgId}.csv`, decisions)}>
+              <Download className="w-3 h-3 mr-1.5" /> CSV
+            </Button>
+          </div>
         </div>
         <div className="overflow-auto max-h-[600px]">
           <table className="w-full text-sm">
