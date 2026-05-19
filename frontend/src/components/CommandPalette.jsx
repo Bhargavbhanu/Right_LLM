@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "../components/ui/command";
-import { Dialog, DialogContent } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../components/ui/dialog";
 import { useOrg } from "../lib/OrgContext";
 import {
   LayoutDashboard, Route as RouteIcon, Database, Wallet, LineChart,
@@ -45,6 +45,8 @@ export default function CommandPalette({ open, onOpenChange }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="p-0 max-w-xl bg-zinc-950 border-zinc-800" data-testid="command-palette">
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
+        <DialogDescription className="sr-only">Jump to a page or switch workspace</DialogDescription>
         <Command className="bg-zinc-950">
           <CommandInput placeholder="Jump to page · switch workspace · search…" autoFocus className="text-sm" />
           <CommandList>

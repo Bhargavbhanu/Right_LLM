@@ -29,52 +29,46 @@ Observability & Analytics → Continuous Learning → Autonomous Action Engine �
 **Backend engines** (`/app/backend/engines.py`)
 - Token estimator, prompt optimizer (filler removal + whitespace compression)
 - Embed() + cosine() for L2 semantic similarity
-- Routing engine: task classifier (summarization/classification/extraction/reasoning/coding/rag/conversational)
-  + complexity tiers (simple/moderate/complex/critical) + cheapest-fit selector
+- Routing engine: task classifier + complexity tiers + cheapest-fit selector
   + skips configurable providers without env credentials
 - Budget engine + auto-downgrade trigger
-- Provider catalog: 15 models across **7 providers** — OpenAI, Anthropic, Gemini, Groq, Ollama, AWS Bedrock, Azure (last 4 are configurable stubs)
+- Provider catalog: 15 models / 7 providers (OpenAI, Anthropic, Gemini live; Groq/Ollama/Bedrock/Azure configurable)
 
 **API endpoints** (all under `/api`)
-- `POST /gateway/chat` — OpenAI-compatible drop-in, **multi-turn aware** (full message history baked into LlmChat user_text)
-- `POST /gateway/stream` — **SSE** with `meta`/`token`/`done` events
-- `POST /routing/decision` — pure routing reasoning
-- `POST /cache/search` — semantic cache lookup
-- `POST /tipe/analyze` — TIPE Analyzer (predict tokens + per-model cost grid for a prompt × task × volume)
-- `POST /advisor/migration` — Migration Simulation (from→to cost / quality / latency delta + verdict)
-- `POST /advisor/best-model` — AI Model Advisor (objective + task + budget → recommended + alternates)
+- `POST /gateway/chat` — OpenAI-compatible drop-in, multi-turn aware
+- `POST /gateway/stream` — SSE with `meta`/`token`/`done` events
+- `POST /routing/decision` · `POST /cache/search`
+- `POST /tipe/analyze` · `POST /advisor/migration` · `POST /advisor/best-model`
+- `GET  /orgs` (multi-tenant org list)
 - `GET  /analytics/usage`, `/forecast/predict`, `/advisor/recommend`, `/budgets/status`,
   `/actions/history`, `/providers/health`, `/routing/decisions`, `/cache/entries`, `/optimization/log`
 
-**Frontend dashboard** (12 pages, sidebar-driven, dark Swiss control-room aesthetic)
-1. Overview — savings, hit rate, token reduction, autonomous actions, charts, live feed
-2. Routing Intelligence — complexity pie, model bar, decisions table with reasoning
-3. Semantic Cache — hit-rate chart, similarity threshold tuner, live probe
-4. Budget Governance — org/team/user budgets + RBAC rules
-5. Forecasting — 30/60/90-day chart with CI band
-6. Recommendations — accept/dismiss cards
-7. Provider Analytics — 7-provider health grid (incl. `unconfigured` state) + 15-model pricing table
-8. Autonomous Actions — vertical timeline feed
-9. Optimization Log — before/after tokens, compression ratio
-10. **TIPE Analyzer** — task tabs, baseline model select, monthly volume slider, cost summary cards, per-model bar chart + full table (recommended row highlighted)
-11. **Advisor Tools** — Migration Simulation card + AI Model Advisor card
-12. Playground — live `/gateway/chat` tester with full decision/optimization/cache trace
+**Frontend dashboard** (12 pages + sidebar features)
+- Sidebar with **Workspace switcher** (3 orgs persisted to localStorage) + **⌘K quick jump**
+- Overview · Routing Intelligence · Semantic Cache · Budget Governance · Forecasting ·
+  Recommendations · Provider Analytics · Autonomous Actions · Optimization Log ·
+  TIPE Analyzer · Advisor Tools · Playground
+- **Polished UX**: AnimatedNumber count-up on stat cards, LiveTicker (real-time gateway activity, 8s poll), Skeleton loaders, staggered fade-up entrance, hover lift on cards
+- **Streaming Playground**: real SSE `/gateway/stream` consumption with progressive token render, live cost meter, abort/stop button, blinking cursor
+- **CSV exports** on Routing Decisions, Cache Entries, Optimization Log
+- **Command palette** (⌘K) with page navigation + workspace switching
+
+**Multi-tenant**: 3 orgs seeded with distinct scale profiles
+- Acme Corp (1.0x) — 42K reqs / $2.9K savings / mo
+- Globex Capital (2.4x) — 99K reqs / $6.9K savings / mo
+- Initech (0.35x) — 14.6K reqs / $1K savings / mo
 
 **Deployment** (`/app/deploy/`)
-- `docker-compose.yml` (mongo + backend + frontend)
-- `Dockerfile.backend`, `Dockerfile.frontend`, `nginx.conf`, `.env.example`
-- `helm/right-llm/` chart with `Chart.yaml`, `values.yaml`, templates for secret/config/backend/frontend/ingress + HPA
-- `README.md` with run instructions
-
-**Seeded data**: 2,300+ historical requests · 940 cache hits · 4 autonomous actions ·
-4 recommendations · 5 budget policies (incl. intern RBAC rules) · 15 models · 7 providers.
+- Docker Compose + Dockerfiles + nginx config + `.env.example`
+- Helm chart with secret/configmap/backend/frontend/ingress + HPA templates + README
 
 ## Tested
-- **Iteration 1**: 18/18 backend + 10/10 frontend tests passed.
-- **Iteration 2**: 26/26 backend + 12/12 frontend tests passed.
-  Verified: TIPE analyze (rca_summary, classification), Migration verdict logic,
-  Best-Model across 4 objectives, multi-turn LLM context recall ("Sarah"),
-  SSE streaming (meta + token + done events), routing excludes unconfigured providers.
+- Iteration 1: 18/18 backend + 10/10 frontend
+- Iteration 2: 26/26 backend + 12/12 frontend  
+- Iteration 3: 36/36 backend + ~85% frontend; 1 UI bug (Overview stale on org switch) → **FIXED**
+  by moving axios interceptor out of useEffect closure (reads localStorage each request) +
+  added DialogTitle/Description to CommandPalette for Radix a11y. Verified manually via
+  Playwright: Acme $2,945 → Globex $6,937 → swap is instant + smooth.
 
 ## Backlog (P1 → P2)
 **P1**

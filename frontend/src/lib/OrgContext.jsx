@@ -1,29 +1,32 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
+const STORAGE_KEY = "rightllm_org";
 const Ctx = createContext({ orgId: "org_acme", setOrgId: () => {}, orgs: [] });
+
+// Register the interceptor ONCE at module load. It reads orgId from localStorage
+// every request, so it always uses the current value (no stale closure).
+api.interceptors.request.use((cfg) => {
+  const orgId = localStorage.getItem(STORAGE_KEY) || "org_acme";
+  cfg.params = { ...(cfg.params || {}), org_id: orgId };
+  if (cfg.data && typeof cfg.data === "object" && !Array.isArray(cfg.data) && !cfg.data.org_id) {
+    cfg.data = { ...cfg.data, org_id: orgId };
+  }
+  return cfg;
+});
 
 export function OrgProvider({ children }) {
   const [orgs, setOrgs] = useState([]);
-  const [orgId, setOrgId] = useState(() => localStorage.getItem("rightllm_org") || "org_acme");
+  const [orgId, setOrgIdState] = useState(() => localStorage.getItem(STORAGE_KEY) || "org_acme");
 
   useEffect(() => {
     api.get("/orgs").then(r => setOrgs(r.data || [])).catch(() => {});
   }, []);
 
-  useEffect(() => { localStorage.setItem("rightllm_org", orgId); }, [orgId]);
-
-  // Attach as default query param on every axios call
-  useEffect(() => {
-    const id = api.interceptors.request.use((cfg) => {
-      cfg.params = { ...(cfg.params || {}), org_id: orgId };
-      if (cfg.data && typeof cfg.data === "object" && !Array.isArray(cfg.data) && !cfg.data.org_id) {
-        cfg.data = { ...cfg.data, org_id: orgId };
-      }
-      return cfg;
-    });
-    return () => api.interceptors.request.eject(id);
-  }, [orgId]);
+  const setOrgId = (id) => {
+    localStorage.setItem(STORAGE_KEY, id);
+    setOrgIdState(id);
+  };
 
   return <Ctx.Provider value={{ orgId, setOrgId, orgs }}>{children}</Ctx.Provider>;
 }
