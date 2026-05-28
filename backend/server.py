@@ -1,6 +1,4 @@
 """Right LLM — FastAPI gateway + analytics backend."""
-from __future__ import annotations
-
 import logging
 import os
 import time
@@ -10,7 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -152,7 +150,7 @@ async def call_llm(provider: str, model: str, messages: list[dict]) -> dict:
 # ─── Gateway endpoint ──────────────────────────────────────────────────────
 @api.post("/gateway/chat")
 @limiter.limit("60/minute")
-async def gateway_chat(request: Request, req: ChatRequest) -> dict[str, Any]:
+async def gateway_chat(request: Request, req: ChatRequest = Body(...)) -> dict[str, Any]:
     started = time.time()
     # 1. Pull user prompt (last user message)
     user_msgs = [m for m in req.messages if m.role == "user"]
@@ -703,7 +701,7 @@ import json as jsonlib
 
 @api.post("/gateway/stream")
 @limiter.limit("60/minute")
-async def gateway_stream(request: Request, req: ChatRequest):
+async def gateway_stream(request: Request, req: ChatRequest = Body(...)):
     """SSE endpoint — emits the final LLM response as token-like chunks plus a final event with cost/decision."""
     result = await gateway_chat(request, req)
 

@@ -1,0 +1,36 @@
+{
+  "summary": "Re-ran backend_test.py + test_auth_settings.py after iteration_5 fixes. Backend suite is now fully green (36/36). Auth suite is 16/17 — only test_brute_force_lockout_after_5_fails still fails. Root cause: k8s ingress is load-balancing across 2 pod IPs (10.231.130.130 and 10.231.129.113), so the 6 login attempts get split between two `request.client.host` values and the per-IP fail counter never reaches 5. The tz-normalization fix is correct; the keying strategy is the residual bug. Collection-collision fix verified: db.users has only domain docs (id/email/role/org_id/team_id, NO password_hash) and db.auth_users holds the 3 auth records. /api/gateway/chat, /api/gateway/stream (SSE), and /api/budgets/status (with and without org_id filter) all pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "Brute-force lockout never triggers in this environment because the key is `f\"{request.client.host}:{email}\"`. The k8s ingress rotates requests across at least 2 backend pod IPs (10.231.130.130 / 10.231.129.113), so 6 sequential failed attempts get split ~3+3 between IPs and neither reaches the 5-fail threshold. Verified directly from db.login_attempts: e.g. `10.231.130.130:test_brute_a8205a@... fails=4` and `10.231.129.113:test_brute_a8205a@... fails=2` for the same email in one test run.",
+        "priority": "MEDIUM"
+      }
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_auth_settings.py",
+    "/app/test_reports/pytest/iteration_6.xml"
+  ],
+  "action_items": [
+    "Fix brute-force keying in /app/backend/auth.py (lines 184 & 198-203). Recommended: key by email only (`key = email`), since brute-force protection is about defending a specific account, not a specific IP. Alternative: read first IP from `request.headers.get('x-forwarded-for','').split(',')[0].strip() or request.client.host` — but the gateway rate-limit test already proved client IPs are unstable, so email-only is the safer choice.",
+    "After fix, re-run test_auth_settings.py::test_brute_force_lockout_after_5_fails to confirm 17/17 PASS."
+  ],
+  "critical_code_review_comments": [
+    "auth.py login() — IP-based lockout key is not stable behind multi-replica ingress. Use email-only or normalized X-Forwarded-For.",
+    "auth.py — tz-normalization on locked_until read (lines 190-191) is correct; PyMongo returns tz-naive UTC.",
+    "Collection separation between db.users (domain) and db.auth_users (auth) is now clean — no leakage of password_hash into domain docs."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "36/36 (100%)", "auth": "16/17 (94%)", "overall": "52/53 (98%)"},
+  "test_credentials": "admin@right-llm.dev / RightLLM2026! and demo@right-llm.dev / DemoUser2026! — both verified working via /api/auth/login.",
+  "seed_data_creation": "Tests created TEST_-prefixed login_attempts and TEST_ org_ids; no domain data mutated.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration_5's 3 fixes (body parsing, db.auth_users split, locked_until tz normalization) are all verified working. The remaining 1/53 failure is a NEW root cause unmasked by the tz fix: multi-replica k8s ingress invalidates per-IP lockout keying. Once main agent re-keys lockout by email (one-line change), expect 53/53 PASS. Frontend was 100% in iter_5 and was skipped per request.",
+  "rca of the issue": "Brute-force lockout failure RCA — auth.py line 184 builds key as `{client.host}:{email}`. The kubernetes ingress fronting the backend round-robins between two pod IPs (confirmed: 10.231.130.130 and 10.231.129.113 both appear as request.client.host within a single test run for the same email). With 6 attempts split 3/3 across two keys, neither key's `fails` counter reaches 5, so `locked_until` is never set and the 6th attempt returns 401 instead of 429. Reproduction: 6× POST /api/auth/login with same wrong email then `db.login_attempts.find({})` shows two separate documents per email. Mitigation: change key to `email` (email-only) or to first XFF hop. The fail-counter increment logic (line 198-204) and the tz-normalized check (line 190-193) are otherwise correct."
+}

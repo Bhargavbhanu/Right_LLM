@@ -4,6 +4,9 @@ Stateful Bearer-token auth (kept simple — no httpOnly cookies because the exis
 uses axios with REACT_APP_BACKEND_URL and we do not control SameSite cross-origin cookies
 in the preview environment). The frontend stores the access token in localStorage and an
 axios interceptor injects it as `Authorization: Bearer …` on every request.
+
+Auth identities live in `db.auth_users` (separate from the domain `db.users` collection
+which holds team-member documents used by the budgets endpoint).
 """
 from __future__ import annotations
 
@@ -122,7 +125,7 @@ def get_current_user_factory(db_getter):
         payload = await _decode(creds.credentials)
         db = db_getter()
         try:
-            user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
+            user = await db.auth_users.find_one({"_id": ObjectId(payload["sub"])})
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid user id")
         if not user:
@@ -155,7 +158,7 @@ def build_auth_router(db, get_current_user):
     @auth_router.post("/register", response_model=AuthOut)
     async def register(body: RegisterIn) -> AuthOut:
         email = body.email.lower().strip()
-        exists = await db.users.find_one({"email": email})
+        exists = await db.auth_users.find_one({"email": email})
         if exists:
             raise HTTPException(status_code=409, detail="Email already registered")
         doc = {
@@ -166,7 +169,7 @@ def build_auth_router(db, get_current_user):
             "org_id": body.org_id,
             "created_at": datetime.now(timezone.utc),
         }
-        res = await db.users.insert_one(doc)
+        res = await db.auth_users.insert_one(doc)
         user_id = str(res.inserted_id)
         token = create_access_token(user_id, email, "member", body.org_id)
         doc["_id"] = res.inserted_id
@@ -181,10 +184,15 @@ def build_auth_router(db, get_current_user):
         key = f"{ip}:{email}"
         now = datetime.now(timezone.utc)
         attempt = await db.login_attempts.find_one({"identifier": key})
-        if attempt and attempt.get("locked_until") and attempt["locked_until"] > now:
-            raise HTTPException(status_code=429, detail="Too many failed attempts. Try again later.")
+        if attempt and attempt.get("locked_until"):
+            locked_until = attempt["locked_until"]
+            # Normalize tz — Mongo returns tz-naive datetimes via motor's default config
+            if locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
+            if locked_until > now:
+                raise HTTPException(status_code=429, detail="Too many failed attempts. Try again later.")
 
-        user = await db.users.find_one({"email": email})
+        user = await db.auth_users.find_one({"email": email})
         if not user or not verify_password(body.password, user["password_hash"]):
             # increment failed attempts
             new_fails = (attempt or {}).get("fails", 0) + 1
@@ -225,13 +233,13 @@ async def seed_users(db) -> None:
     demo_pw = os.environ["DEMO_USER_PASSWORD"]
 
     # Indexes
-    await db.users.create_index("email", unique=True)
+    await db.auth_users.create_index("email", unique=True)
     await db.login_attempts.create_index("identifier", unique=True)
 
     async def upsert(email: str, password: str, name: str, role: str, org_id: str) -> None:
-        existing = await db.users.find_one({"email": email})
+        existing = await db.auth_users.find_one({"email": email})
         if existing is None:
-            await db.users.insert_one(
+            await db.auth_users.insert_one(
                 {
                     "email": email,
                     "name": name,
@@ -245,7 +253,7 @@ async def seed_users(db) -> None:
         else:
             # Re-sync password if .env changed
             if not verify_password(password, existing["password_hash"]):
-                await db.users.update_one(
+                await db.auth_users.update_one(
                     {"email": email}, {"$set": {"password_hash": hash_password(password)}}
                 )
                 logger.info("Updated %s password (%s)", role, email)
