@@ -6,7 +6,7 @@ import json
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://smart-llm-2.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://refactor-hub-33.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 

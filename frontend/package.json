@@ -1,4 +1,3 @@
-```json
 {
   "name": "frontend",
   "version": "0.1.0",
@@ -94,4 +93,3 @@
     "node": "20.x"
   }
 }
-```
