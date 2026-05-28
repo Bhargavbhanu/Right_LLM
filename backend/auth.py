@@ -179,9 +179,12 @@ def build_auth_router(db, get_current_user):
     async def login(body: LoginIn, request: Request) -> AuthOut:
         email = body.email.lower().strip()
 
-        # Brute force protection — 5 fails in 15 min
-        ip = request.client.host if request.client else "unknown"
-        key = f"{ip}:{email}"
+        # Brute force protection — 5 fails in 15 min per email
+        # NOTE: keyed by email (not IP) because the platform sits behind a multi-replica
+        # k8s ingress that rotates `request.client.host` across pod IPs, splitting the
+        # fail counter across multiple keys. Keying by email also matches the threat model:
+        # we defend a specific account, not a specific source IP.
+        key = email
         now = datetime.now(timezone.utc)
         attempt = await db.login_attempts.find_one({"identifier": key})
         if attempt and attempt.get("locked_until"):

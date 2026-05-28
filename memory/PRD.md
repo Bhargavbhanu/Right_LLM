@@ -86,24 +86,38 @@ Observability & Analytics → Continuous Learning → Autonomous Action Engine �
   stream via `event: token`. No regressions; sidebar nav, workspace switcher and CSV export
   remain functional.
 
+- Iteration 5–6 (2026-02-28): JWT auth + RBAC + Settings page for provider keys + slowapi
+  rate-limit + brute-force lockout. Three critical defects found by testing agent and fixed
+  same iteration: (a) `from __future__ import annotations` + `Body(...)` default broke
+  pydantic 2 body parsing on /gateway/{chat,stream} → removed `__future__` import. (b) auth
+  users were colliding with the domain `db.users` collection used by /budgets/status → moved
+  auth to `db.auth_users`. (c) `locked_until` tz-naive vs `now()` tz-aware → normalize on
+  read. (d) lockout keyed by `{ip}:{email}` failed under multi-replica k8s ingress → re-key
+  by email-only (better security anyway). Final result: 36/36 backend + 17/17 auth-suite +
+  100% frontend (admin login → topbar PA avatar → Settings page → 4 provider cards with
+  Fernet-encrypted Groq/Ollama/Bedrock/Azure key vault → live ↔ not-configured pill;
+  member login hides settings nav). New endpoints: POST /api/auth/{register,login,logout},
+  GET /api/auth/me, GET/PUT/DELETE /api/settings/providers (admin-only).
+
 ## Backlog (P1 → P2)
 **P1**
-- JWT + RBAC auth (currently DEFAULT_ORG bypass)
-- Per-user/org rate limiting on `/gateway/chat`
-- Real embeddings (OpenAI text-embedding-3-small) — requires user-supplied OpenAI key
-- ANN index for L2 cache (FAISS / Mongo Atlas Vector Search) for >10k entries
-- **Backend modularization** — split `server.py` (~740 lines) into `routes/`, `models/`,
-  `services/` packages; add structured logging middleware
-- **Settings page** — UI to paste & save provider API keys (Groq/Ollama/Bedrock/Azure)
-  → activates them in the routing engine without env restart
+- ~~JWT + RBAC auth~~ ✅ done (iter-5/6)
+- ~~Per-org rate limiting on `/gateway/*`~~ ✅ done (slowapi 60/min)
+- Real embeddings (OpenAI text-embedding-3-small via Emergent LLM key) — currently uses a
+  deterministic md5-based pseudo-embedding (fine for demo / <5k cache entries)
+- ANN index for L2 cache (FAISS / Mongo Atlas Vector Search) — defer until cache > 10k
+  entries; current linear-scan cosine works fine in MongoDB up to that point
+- **Backend modularization** — split `server.py` (~770 lines) into `routes/`, `models/`,
+  `services/` packages; add structured request-id logging middleware
 
 **P2**
 - WebSocket live-feed for autonomous actions
 - Multi-turn message handling in `/gateway/chat` (currently last-user-message)
-- ~~Streaming responses (SSE)~~ ✅ done
-- Provider failover policy editor
-- ~~Export usage CSV~~ ✅ done (Routing, Cache, Optimization Log)
 - Stripe billing for SaaS plans
 - OpenTelemetry trace export (Datadog / Honeycomb)
 - K8s Helm chart + Docker Compose
-- Groq / Ollama / Bedrock / Azure providers (catalog present, demo-flagged in UI)
+- ~~Streaming responses (SSE)~~ ✅ done
+- ~~Export usage CSV~~ ✅ done
+- ~~Settings UI to paste provider API keys~~ ✅ done (iter-5)
+- Refresh tokens / sliding window
+- Email verification + password reset flow
