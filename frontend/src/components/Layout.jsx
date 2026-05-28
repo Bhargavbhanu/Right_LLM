@@ -7,9 +7,10 @@ import {
 import {
   LayoutDashboard, Route as RouteIcon, Database, Wallet, LineChart,
   Lightbulb, Server, Bot, ScrollText, Play, Sparkles, Flame, Building2,
-  Command as CmdIcon, BookOpen, X, CircleDot,
+  Command as CmdIcon, BookOpen, X, CircleDot, Settings as SettingsIcon,
 } from "lucide-react";
 import Topbar from "./Topbar";
+import { useAuth } from "../lib/AuthContext";
 
 const NAV_SECTIONS = [
   {
@@ -43,13 +44,16 @@ const NAV_SECTIONS = [
       { to: "/advisor", label: "Advisor Tools", icon: Sparkles, testId: "nav-advisor" },
       { to: "/playground", label: "Playground", icon: Play, testId: "nav-playground" },
       { to: "/guide", label: "Guide", icon: BookOpen, testId: "nav-guide" },
+      { to: "/settings", label: "Settings", icon: SettingsIcon, testId: "nav-settings", adminOnly: true },
     ],
   },
 ];
 
 function SidebarContent({ onPaletteOpen, onItemClick }) {
   const { orgs, orgId, setOrgId } = useOrg();
+  const { user } = useAuth();
   const currentOrg = orgs.find((o) => o.id === orgId);
+  const isAdmin = user?.role === "admin";
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 h-14 flex items-center gap-2.5 border-b border-zinc-800/80">
@@ -93,7 +97,9 @@ function SidebarContent({ onPaletteOpen, onItemClick }) {
               {section.title}
             </div>
             <div className="space-y-0.5">
-              {section.items.map(({ to, label, icon: Icon, end, testId }) => (
+              {section.items
+                .filter((item) => !item.adminOnly || isAdmin)
+                .map(({ to, label, icon: Icon, end, testId }) => (
                 <NavLink
                   key={to}
                   to={to}

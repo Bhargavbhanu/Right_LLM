@@ -10,11 +10,16 @@ from pathlib import Path
 from typing import Any, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.middleware.cors import CORSMiddleware
 
+import auth as auth_mod
+import provider_keys
 from engines import (
     PROVIDER_CATALOG,
     classify_task,
@@ -38,6 +43,27 @@ db = client[os.environ["DB_NAME"]]
 # ─── App ───────────────────────────────────────────────────────────────────
 app = FastAPI(title="Right LLM Gateway")
 api = APIRouter(prefix="/api")
+
+# Rate limiter — applied per-endpoint via decorator below. Uses org_id from request body
+# when available, falls back to client IP.
+def _rate_key(request: Request) -> str:
+    org = request.headers.get("X-Org-Id")
+    return org or get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_key)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Auth dependency wired to our `db` instance.
+get_current_user = auth_mod.get_current_user_factory(lambda: db)
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return user
+
 
 DEFAULT_ORG = "org_acme"
 
@@ -125,7 +151,8 @@ async def call_llm(provider: str, model: str, messages: list[dict]) -> dict:
 
 # ─── Gateway endpoint ──────────────────────────────────────────────────────
 @api.post("/gateway/chat")
-async def gateway_chat(req: ChatRequest) -> dict[str, Any]:
+@limiter.limit("60/minute")
+async def gateway_chat(request: Request, req: ChatRequest) -> dict[str, Any]:
     started = time.time()
     # 1. Pull user prompt (last user message)
     user_msgs = [m for m in req.messages if m.role == "user"]
@@ -675,9 +702,10 @@ import json as jsonlib
 
 
 @api.post("/gateway/stream")
-async def gateway_stream(req: ChatRequest):
+@limiter.limit("60/minute")
+async def gateway_stream(request: Request, req: ChatRequest):
     """SSE endpoint — emits the final LLM response as token-like chunks plus a final event with cost/decision."""
-    result = await gateway_chat(req)
+    result = await gateway_chat(request, req)
 
     async def event_gen():
         # Emit metadata first
@@ -711,6 +739,10 @@ async def health():
 
 
 app.include_router(api)
+# Auth + Settings routers — mounted under /api too
+app.include_router(auth_mod.build_auth_router(db, get_current_user), prefix="/api")
+app.include_router(provider_keys.build_settings_router(db, require_admin), prefix="/api")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -731,6 +763,11 @@ async def startup() -> None:
         logger.info("Empty DB — running auto-seed")
         import seed
         await seed.seed()
+    # Seed admin + demo user
+    await auth_mod.seed_users(db)
+    # Warm provider-keys cache
+    await provider_keys.load_keys_from_db(db)
+    logger.info("Auth + provider-key cache initialized")
 
 
 @app.on_event("shutdown")

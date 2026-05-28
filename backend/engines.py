@@ -156,12 +156,21 @@ def classify_task(prompt: str) -> dict:
 
 
 def _provider_has_credentials(provider: str) -> bool:
-    """Check if a configurable provider has its env credentials set."""
-    import os as _os
-    env_map = {"groq": "GROQ_API_KEY", "ollama": "OLLAMA_BASE_URL",
-               "bedrock": "AWS_ACCESS_KEY_ID", "azure": "AZURE_OPENAI_API_KEY"}
-    var = env_map.get(provider)
-    return bool(var and _os.environ.get(var))
+    """Check if a configurable provider has its credentials configured.
+
+    Resolution order: in-memory cache populated from Mongo `provider_keys` collection
+    (the Settings UI writes here) → environment variables.
+    """
+    try:
+        from provider_keys import provider_is_configured
+        return provider_is_configured(provider)
+    except Exception:
+        # Fall back to env-only lookup if provider_keys not yet imported
+        import os as _os
+        env_map = {"groq": "GROQ_API_KEY", "ollama": "OLLAMA_BASE_URL",
+                   "bedrock": "AWS_ACCESS_KEY_ID", "azure": "AZURE_OPENAI_API_KEY"}
+        var = env_map.get(provider)
+        return bool(var and _os.environ.get(var))
 
 
 def select_model(
