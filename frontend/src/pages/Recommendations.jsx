@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from "react";
 import PageHeader from "../components/PageHeader";
+import { Surface, Pill, EmptyState } from "../components/Card";
 import { getRecommendations, actOnRecommendation, fmtUsd } from "../lib/api";
 import { useOrg } from "../lib/OrgContext";
 import { Button } from "../components/ui/button";
 import { Lightbulb, Check, X, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
-const CATEGORY = {
-  routing:      { color: "text-blue-400 border-blue-900",       label: "Routing" },
-  cache:        { color: "text-emerald-400 border-emerald-900", label: "Cache" },
-  optimization: { color: "text-purple-400 border-purple-900",   label: "Optimization" },
-  governance:   { color: "text-orange-400 border-orange-900",   label: "Governance" },
+const CATEGORY_COLOR = {
+  routing:      { pill: "blue",    label: "Routing" },
+  cache:        { pill: "emerald", label: "Cache" },
+  optimization: { pill: "violet",  label: "Optimization" },
+  governance:   { pill: "amber",   label: "Governance" },
 };
 
 export default function Recommendations() {
   const { orgId } = useOrg();
   const [recs, setRecs] = useState([]);
+
   const load = () => getRecommendations().then(setRecs).catch(() => {});
   useEffect(() => { load(); }, [orgId]);
 
@@ -25,7 +27,8 @@ export default function Recommendations() {
     load();
   };
 
-  const totalPotential = recs.filter(r => r.status === "pending").reduce((s, r) => s + (r.estimated_monthly_savings_usd || 0), 0);
+  const pendingRecs = recs.filter((r) => r.status === "pending");
+  const totalPotential = pendingRecs.reduce((s, r) => s + (r.estimated_monthly_savings_usd || 0), 0);
 
   return (
     <div data-testid="page-recommendations">
@@ -33,55 +36,80 @@ export default function Recommendations() {
         title="Recommendations"
         subtitle="AI-driven optimization opportunities ranked by projected monthly savings."
         right={
-          <div className="px-3 py-1.5 rounded-md border border-emerald-900 bg-emerald-950/30 text-emerald-300 text-xs flex items-center gap-2">
-            <TrendingUp className="w-3.5 h-3.5" /> Potential: <span className="font-bold mono">{fmtUsd(totalPotential)}/mo</span>
+          <div className="px-3 py-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/5 text-emerald-300 text-xs flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5" />
+            Potential <span className="font-bold mono tabular-nums">{fmtUsd(totalPotential)}/mo</span>
           </div>
         }
         testId="rec-header"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {recs.map(r => {
-          const cat = CATEGORY[r.category] || CATEGORY.routing;
-          return (
-            <div key={r.id} data-testid={`rec-${r.id}`}
-              className={`border rounded-md p-5 bg-zinc-950 transition-colors duration-200 ${
-                r.status === "pending" ? "border-zinc-800 hover:border-zinc-600" : "border-zinc-900 opacity-60"
-              }`}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-                    <Lightbulb className="w-4 h-4 text-yellow-400" />
+      {recs.length === 0 ? (
+        <EmptyState
+          icon={<Lightbulb className="w-5 h-5" />}
+          title="No recommendations yet"
+          description="The advisor will surface opportunities once it has at least 24h of routing data."
+          testId="rec-empty"
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {recs.map((r) => {
+            const cat = CATEGORY_COLOR[r.category] || CATEGORY_COLOR.routing;
+            const isPending = r.status === "pending";
+            return (
+              <Surface
+                key={r.id}
+                testId={`rec-${r.id}`}
+                className={`transition-opacity ${isPending ? "" : "opacity-60"}`}
+              >
+                <div className="flex items-start justify-between mb-3 gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-md bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0">
+                      <Lightbulb className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-heading text-base font-semibold leading-snug text-zinc-100">{r.title}</div>
+                      <div className="mt-1.5"><Pill color={cat.pill}>{cat.label}</Pill></div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-heading text-lg font-semibold leading-tight">{r.title}</div>
-                    <span className={`text-[10px] uppercase tracking-[0.2em] mt-1 inline-block px-2 py-0.5 rounded border ${cat.color}`}>
-                      {cat.label}
-                    </span>
+                  <div className="text-right shrink-0">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">Monthly</div>
+                    <div className="font-heading text-xl font-bold text-emerald-400 mono tabular-nums leading-none mt-1">
+                      {fmtUsd(r.estimated_monthly_savings_usd)}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">monthly</div>
-                  <div className="font-heading text-2xl font-bold text-emerald-400 mono">{fmtUsd(r.estimated_monthly_savings_usd)}</div>
-                </div>
-              </div>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-4">{r.description}</p>
-              {r.status === "pending" ? (
-                <div className="flex gap-2">
-                  <Button size="sm" data-testid={`rec-${r.id}-accept`} onClick={() => act(r.id, "accept")} className="bg-white text-zinc-900 hover:bg-zinc-200">
-                    <Check className="w-3.5 h-3.5 mr-1" /> Accept
-                  </Button>
-                  <Button size="sm" variant="outline" data-testid={`rec-${r.id}-dismiss`} onClick={() => act(r.id, "dismiss")} className="border-zinc-700">
-                    <X className="w-3.5 h-3.5 mr-1" /> Dismiss
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-xs text-zinc-500 mono uppercase tracking-[0.2em]">{r.status}</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                <p className="text-[13px] text-zinc-400 leading-relaxed mb-4">{r.description}</p>
+                {isPending ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      data-testid={`rec-${r.id}-accept`}
+                      onClick={() => act(r.id, "accept")}
+                      className="bg-zinc-50 text-zinc-900 hover:bg-white h-8"
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1" /> Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      data-testid={`rec-${r.id}-dismiss`}
+                      onClick={() => act(r.id, "dismiss")}
+                      className="border-zinc-800 h-8 hover:bg-zinc-900"
+                    >
+                      <X className="w-3.5 h-3.5 mr-1" /> Dismiss
+                    </Button>
+                  </div>
+                ) : (
+                  <Pill color={r.status === "accepted" ? "emerald" : "zinc"}>
+                    {r.status}
+                  </Pill>
+                )}
+              </Surface>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
