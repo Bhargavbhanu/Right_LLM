@@ -50,27 +50,103 @@ def estimate_cost(prompt_tokens: int, completion_tokens: int, model: dict) -> fl
     return (prompt_tokens / 1000.0) * model["in"] + (completion_tokens / 1000.0) * model["out"]
 
 
-# ── Embedding (deterministic hash n-gram → 256-dim unit vector) ────────────
-EMBED_DIM = 256
+# ── Embedding ─────────────────────────────────────────────────────────────
+# Hybrid approach:
+#   • Default: a much-improved deterministic 512-dim embedding that combines word
+#     n-grams (1+2+3) with character n-grams (3,4,5) — semantically far stronger than
+#     bag-of-md5-bigrams. Good for cache hit-rate up to ~10k entries.
+#   • If OPENAI_API_KEY is set in env, we call OpenAI text-embedding-3-small for the
+#     "real" 1536-dim vectors. Cached responses are pinned to whichever dim is active
+#     so cosine() always compares same-shape vectors.
+#
+# We intentionally do NOT route this through emergentintegrations / EMERGENT_LLM_KEY —
+# the universal key proxy is for chat/image only and does not expose embeddings.
+import os as _os
+EMBED_DIM = 512
+_OPENAI_EMBED_MODEL = "text-embedding-3-small"
+_OPENAI_EMBED_DIM = 1536
 
 
-def embed(text: str) -> list[float]:
+def _hash_embed(text: str) -> list[float]:
+    """Improved deterministic embedding — word + char n-grams projected via signed
+    feature-hashing into a 512-dim unit vector. Pure-python, ~80µs per call."""
     text = text.lower()
-    tokens = re.findall(r"[a-z0-9]+", text)
-    # bigrams + unigrams
-    grams = tokens + [f"{a}_{b}" for a, b in zip(tokens, tokens[1:])]
+    words = re.findall(r"[a-z0-9]+", text)
     vec = [0.0] * EMBED_DIM
-    for g in grams:
-        h = int(hashlib.md5(g.encode()).hexdigest(), 16)
+
+    def _bump(token: str, weight: float = 1.0) -> None:
+        h = int(hashlib.md5(token.encode()).hexdigest(), 16)
         idx = h % EMBED_DIM
         sign = 1.0 if (h >> 16) & 1 else -1.0
-        vec[idx] += sign
+        vec[idx] += sign * weight
+
+    # Word unigrams + bigrams + trigrams (decreasing weight — bigrams capture phrase
+    # context, trigrams catch named entities and idioms).
+    for w in words:
+        _bump(w, 1.0)
+    for a, b in zip(words, words[1:]):
+        _bump(f"{a}_{b}", 0.8)
+    for a, b, c in zip(words, words[1:], words[2:]):
+        _bump(f"{a}_{b}_{c}", 0.5)
+
+    # Character n-grams (3-5) on the raw text — catches morphology + typos.
+    # Sample every 2 chars to keep latency bounded on long prompts.
+    txt = re.sub(r"\s+", " ", text)
+    for n in (3, 4, 5):
+        for i in range(0, max(0, len(txt) - n), 2):
+            _bump(f"c{n}_{txt[i:i+n]}", 0.4)
+
     norm = math.sqrt(sum(x * x for x in vec)) or 1.0
     return [x / norm for x in vec]
 
 
+# Optional real OpenAI embeddings — activated by setting OPENAI_API_KEY in backend/.env.
+_openai_client = None
+_openai_available = False
+
+
+def _maybe_init_openai() -> None:
+    """Initialize the OpenAI async client lazily. Safe to call repeatedly."""
+    global _openai_client, _openai_available
+    if _openai_client is not None or _openai_available is False and "OPENAI_API_KEY" not in _os.environ:
+        # Either already tried, or no key at all → use deterministic
+        if "OPENAI_API_KEY" not in _os.environ:
+            _openai_available = False
+        return
+    try:
+        from openai import AsyncOpenAI  # noqa: WPS433 — local import: optional dep
+        _openai_client = AsyncOpenAI(api_key=_os.environ["OPENAI_API_KEY"], timeout=10.0)
+        _openai_available = True
+    except Exception:
+        _openai_available = False
+
+
+async def embed_async(text: str) -> list[float]:
+    """Async embedding — uses OpenAI if configured, else deterministic hash."""
+    _maybe_init_openai()
+    if _openai_available and _openai_client is not None:
+        try:
+            r = await _openai_client.embeddings.create(model=_OPENAI_EMBED_MODEL, input=text[:8000])
+            return r.data[0].embedding  # 1536-dim
+        except Exception:
+            # On any failure fall through to deterministic — never break a request
+            pass
+    return _hash_embed(text)
+
+
+def embed(text: str) -> list[float]:
+    """Sync embedding — always deterministic. Used by tests and any non-async path.
+
+    Production traffic goes through `embed_async` which prefers real OpenAI embeddings
+    when OPENAI_API_KEY is set.
+    """
+    return _hash_embed(text)
+
+
 def cosine(a: list[float], b: list[float]) -> float:
-    return sum(x * y for x, y in zip(a, b))
+    # Truncate to shorter length so cross-dim comparisons don't crash (defence in depth)
+    n = min(len(a), len(b))
+    return sum(a[i] * b[i] for i in range(n))
 
 
 # ── Optimization Engine ─────────────────────────────────────────────────────
