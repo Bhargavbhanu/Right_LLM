@@ -158,18 +158,25 @@ export default function AdvisorTools() {
                     <div className={`font-heading text-lg font-bold mono tabular-nums mt-1 ${migResult.monthly_savings > 0 ? "text-emerald-400" : "text-rose-400"}`}>
                       {migResult.monthly_savings > 0 ? "−" : "+"}{fmtUsd(Math.abs(migResult.monthly_savings))}
                     </div>
+                    {migResult.baseline?.monthly_cost > 0 && (
+                      <div className="text-[10px] text-zinc-500 mono mt-0.5 tabular-nums">
+                        {((migResult.monthly_savings / migResult.baseline.monthly_cost) * 100).toFixed(1)}% vs baseline
+                      </div>
+                    )}
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">Quality Δ</div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">Quality Δ <span className="text-zinc-600 normal-case tracking-normal">(pts)</span></div>
                     <div className={`font-heading text-lg font-bold mono tabular-nums mt-1 ${migResult.quality_delta >= 0 ? "text-emerald-400" : "text-amber-400"}`}>
                       {migResult.quality_delta >= 0 ? "+" : ""}{(migResult.quality_delta * 100).toFixed(1)}
                     </div>
+                    <div className="text-[10px] text-zinc-500 mono mt-0.5">on 0–100 scale</div>
                   </div>
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">Latency Δ</div>
                     <div className={`font-heading text-lg font-bold mono tabular-nums mt-1 ${migResult.latency_delta_ms <= 0 ? "text-emerald-400" : "text-amber-400"}`}>
-                      {migResult.latency_delta_ms > 0 ? "+" : ""}{migResult.latency_delta_ms}ms
+                      {migResult.latency_delta_ms > 0 ? "+" : ""}{migResult.latency_delta_ms}<span className="text-zinc-500 text-sm ml-0.5">ms</span>
                     </div>
+                    <div className="text-[10px] text-zinc-500 mono mt-0.5">P95 estimate</div>
                   </div>
                 </div>
                 <p className="text-xs text-zinc-400 leading-relaxed">{migResult.summary}</p>
@@ -228,8 +235,11 @@ export default function AdvisorTools() {
           {advResult && (
             <div className="mt-5 pt-5 border-t border-zinc-800/80 space-y-3" data-testid="adv-result">
               <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-medium">Recommended</div>
-              <div className="font-heading text-lg font-bold mono text-emerald-400">
-                {advResult.recommended.provider}/{advResult.recommended.model}
+              <div className="font-heading text-lg font-bold mono text-emerald-400 flex items-center gap-2 flex-wrap">
+                <span>{advResult.recommended.provider}/{advResult.recommended.model}</span>
+                {["groq", "ollama", "bedrock", "azure"].includes(advResult.recommended.provider) && (
+                  <Pill color="amber">demo · needs API key</Pill>
+                )}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
@@ -249,12 +259,18 @@ export default function AdvisorTools() {
               <div>
                 <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-2 font-medium">Alternates</div>
                 <div className="space-y-1.5">
-                  {advResult.alternates.slice(0, 4).map((a) => (
-                    <div key={a.model} className="flex items-center justify-between text-xs border-b border-zinc-900 py-1.5">
-                      <span className="mono text-zinc-300 truncate">{a.provider}/{a.model}</span>
-                      <span className="mono text-zinc-500 tabular-nums whitespace-nowrap">{fmtUsd(a.monthly_cost)}/mo · q{(a.quality * 100).toFixed(0)} · {a.p95_ms}ms</span>
-                    </div>
-                  ))}
+                  {advResult.alternates.slice(0, 4).map((a) => {
+                    const isDemo = ["groq", "ollama", "bedrock", "azure"].includes(a.provider);
+                    return (
+                      <div key={a.model} className="flex items-center justify-between text-xs border-b border-zinc-900 py-1.5 gap-2">
+                        <span className="mono text-zinc-300 truncate flex items-center gap-2 min-w-0">
+                          <span className="truncate">{a.provider}/{a.model}</span>
+                          {isDemo && <span className="text-[9px] uppercase tracking-wider text-amber-400 shrink-0">demo</span>}
+                        </span>
+                        <span className="mono text-zinc-500 tabular-nums whitespace-nowrap shrink-0">{fmtUsd(a.monthly_cost)}/mo · q{(a.quality * 100).toFixed(0)} · {a.p95_ms}ms</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

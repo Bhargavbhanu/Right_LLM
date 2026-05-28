@@ -54,7 +54,10 @@ export function StatCard({
         {loading ? (
           <div className="h-8 w-32 rounded shimmer" />
         ) : (
-          <div className={`font-heading text-[1.75rem] leading-none font-bold tracking-tight ${accent || "text-white"}`}>
+          <div
+            data-testid={testId ? `${testId}-value` : undefined}
+            className={`font-heading text-[1.75rem] leading-none font-bold tracking-tight ${accent || "text-white"}`}
+          >
             {value}
           </div>
         )}

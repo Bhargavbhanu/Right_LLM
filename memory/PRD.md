@@ -74,6 +74,17 @@ Observability & Analytics → Continuous Learning → Autonomous Action Engine �
   by moving axios interceptor out of useEffect closure (reads localStorage each request) +
   added DialogTitle/Description to CommandPalette for Radix a11y. Verified manually via
   Playwright: Acme $2,945 → Globex $6,937 → swap is instant + smooth.
+- Iteration 4 (2026-02-28): 36/36 backend + ~98% frontend after platform-wide UI/UX
+  overhaul. New `Card.jsx` design-system (`Surface`, `StatCard`, `SectionCard`, `Pill`,
+  `EmptyState`) applied across 12 pages. Playground rewritten with preset chips, model
+  picker (Auto + 15 models), demo-mode warning for configurable providers, live cost meter,
+  routing-decision panel with task/complexity pills, optimization compression bar, session
+  history (last 5 runs), spinner inside Stream button. AdvisorTools polished with
+  quality-Δ units ("(pts)" + "on 0–100 scale"), %-vs-baseline cost delta, and `demo · needs
+  API key` pill on configurable-provider recommendations. SSE streaming verified end-to-end
+  with cache HIT (L1) returning 1ms; routing decision arrives via `event: meta`, tokens
+  stream via `event: token`. No regressions; sidebar nav, workspace switcher and CSV export
+  remain functional.
 
 ## Backlog (P1 → P2)
 **P1**
@@ -81,14 +92,18 @@ Observability & Analytics → Continuous Learning → Autonomous Action Engine �
 - Per-user/org rate limiting on `/gateway/chat`
 - Real embeddings (OpenAI text-embedding-3-small) — requires user-supplied OpenAI key
 - ANN index for L2 cache (FAISS / Mongo Atlas Vector Search) for >10k entries
+- **Backend modularization** — split `server.py` (~740 lines) into `routes/`, `models/`,
+  `services/` packages; add structured logging middleware
+- **Settings page** — UI to paste & save provider API keys (Groq/Ollama/Bedrock/Azure)
+  → activates them in the routing engine without env restart
 
 **P2**
 - WebSocket live-feed for autonomous actions
 - Multi-turn message handling in `/gateway/chat` (currently last-user-message)
-- Streaming responses (SSE)
+- ~~Streaming responses (SSE)~~ ✅ done
 - Provider failover policy editor
-- Export usage CSV
+- ~~Export usage CSV~~ ✅ done (Routing, Cache, Optimization Log)
 - Stripe billing for SaaS plans
 - OpenTelemetry trace export (Datadog / Honeycomb)
 - K8s Helm chart + Docker Compose
-- Groq / Ollama / Bedrock / Azure providers
+- Groq / Ollama / Bedrock / Azure providers (catalog present, demo-flagged in UI)

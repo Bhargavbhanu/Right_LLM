@@ -322,11 +322,20 @@ export default function Playground() {
               <Button
                 data-testid="pg-send"
                 onClick={send}
-                disabled={!prompt.trim()}
+                disabled={!prompt.trim() || busy}
                 className="w-full bg-zinc-50 text-zinc-900 hover:bg-white h-10 font-medium"
               >
-                <Play className="w-3.5 h-3.5 mr-2" />
-                Stream via Right LLM Gateway
+                {busy ? (
+                  <>
+                    <span className="inline-block w-3.5 h-3.5 mr-2 rounded-full border-2 border-zinc-300 border-t-zinc-900 animate-spin" />
+                    Streaming…
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 mr-2" />
+                    Stream via Right LLM Gateway
+                  </>
+                )}
               </Button>
             )}
           </div>
