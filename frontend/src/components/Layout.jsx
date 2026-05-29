@@ -107,20 +107,20 @@ function SidebarContent({ onPaletteOpen, onItemClick }) {
                   data-testid={testId}
                   onClick={onItemClick}
                   className={({ isActive }) =>
-                    `group relative flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[13px] transition-all duration-150 ${
+                    `group relative flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[13px] transition-all duration-200 ${
                       isActive
-                        ? "bg-zinc-800/80 text-zinc-50 font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                        ? "nav-active text-zinc-50 font-medium"
                         : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60"
                     }`
                   }
                 >
                   {({ isActive }) => (
                     <>
-                      {isActive && (
-                        <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-r bg-gradient-to-b from-blue-400 to-violet-500" />
-                      )}
-                      <Icon className={`w-3.5 h-3.5 ${isActive ? "text-zinc-100" : "text-zinc-500 group-hover:text-zinc-300"}`} />
+                      <Icon className={`w-3.5 h-3.5 transition-colors ${isActive ? "text-blue-300" : "text-zinc-500 group-hover:text-zinc-300"}`} />
                       <span className="truncate">{label}</span>
+                      {isActive && (
+                        <span className="ml-auto w-1 h-1 rounded-full bg-blue-400 shadow-[0_0_6px_rgba(99,102,241,0.8)]" />
+                      )}
                     </>
                   )}
                 </NavLink>
@@ -203,7 +203,10 @@ export default function Layout({ onPaletteOpen }) {
           onPaletteOpen={onPaletteOpen}
           onMobileMenuOpen={() => setMobileOpen(true)}
         />
-        <div className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 animate-fade-up">
+        <div
+          key={pathname}
+          className="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 page-enter"
+        >
           <Outlet />
         </div>
       </main>

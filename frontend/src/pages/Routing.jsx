@@ -67,7 +67,7 @@ export default function Routing() {
         testId="routing-header"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 stagger">
         <StatCard
           testId="stat-routed"
           label="Routing decisions (30d)"

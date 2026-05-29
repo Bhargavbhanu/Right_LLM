@@ -45,7 +45,7 @@ export default function Providers() {
         testId="providers-header"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 stagger">
         {data.providers.map((p) => {
           const h = HEALTH[p.health] || HEALTH.healthy;
           return (

@@ -226,7 +226,7 @@ export default function Settings() {
       {loading ? (
         <div className="text-zinc-500 text-sm">Loading…</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger">
           {data.providers.map((p) => (
             <ProviderCard key={p.provider} data={p} onSaved={load} />
           ))}

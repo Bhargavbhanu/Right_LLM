@@ -126,7 +126,7 @@ export default function Login() {
               type="submit"
               data-testid="login-submit"
               disabled={busy}
-              className="w-full h-10 bg-zinc-50 text-zinc-900 hover:bg-white font-medium"
+              className="btn-shine w-full h-10 bg-zinc-50 text-zinc-900 hover:bg-white font-medium"
             >
               {busy ? (
                 <>

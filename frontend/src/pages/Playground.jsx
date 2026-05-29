@@ -323,7 +323,7 @@ export default function Playground() {
                 data-testid="pg-send"
                 onClick={send}
                 disabled={!prompt.trim() || busy}
-                className="w-full bg-zinc-50 text-zinc-900 hover:bg-white h-10 font-medium"
+                className="btn-shine w-full bg-zinc-50 text-zinc-900 hover:bg-white h-10 font-medium"
               >
                 {busy ? (
                   <>

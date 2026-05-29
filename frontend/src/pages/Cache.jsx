@@ -60,7 +60,7 @@ export default function Cache() {
         testId="cache-header"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 stagger">
         <StatCard
           testId="cache-stat-hitrate"
           label="Hit rate (30d)"

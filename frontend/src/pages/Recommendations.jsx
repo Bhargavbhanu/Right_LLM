@@ -52,7 +52,7 @@ export default function Recommendations() {
           testId="rec-empty"
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 stagger">
           {recs.map((r) => {
             const cat = CATEGORY_COLOR[r.category] || CATEGORY_COLOR.routing;
             const isPending = r.status === "pending";

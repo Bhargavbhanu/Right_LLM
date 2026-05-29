@@ -86,18 +86,29 @@ Observability & Analytics → Continuous Learning → Autonomous Action Engine �
   stream via `event: token`. No regressions; sidebar nav, workspace switcher and CSV export
   remain functional.
 
-- Iteration 5–6 (2026-02-28): JWT auth + RBAC + Settings page for provider keys + slowapi
-  rate-limit + brute-force lockout. Three critical defects found by testing agent and fixed
-  same iteration: (a) `from __future__ import annotations` + `Body(...)` default broke
-  pydantic 2 body parsing on /gateway/{chat,stream} → removed `__future__` import. (b) auth
-  users were colliding with the domain `db.users` collection used by /budgets/status → moved
-  auth to `db.auth_users`. (c) `locked_until` tz-naive vs `now()` tz-aware → normalize on
-  read. (d) lockout keyed by `{ip}:{email}` failed under multi-replica k8s ingress → re-key
-  by email-only (better security anyway). Final result: 36/36 backend + 17/17 auth-suite +
-  100% frontend (admin login → topbar PA avatar → Settings page → 4 provider cards with
-  Fernet-encrypted Groq/Ollama/Bedrock/Azure key vault → live ↔ not-configured pill;
-  member login hides settings nav). New endpoints: POST /api/auth/{register,login,logout},
-  GET /api/auth/me, GET/PUT/DELETE /api/settings/providers (admin-only).
+- Iteration 7 (2026-02-28): Backend modularization (`server.py` → 95 LOC slim entrypoint
+  with 12 routers under `routes/`, services under `services/`, models in `models.py`).
+  Structured request-id middleware adds `X-Request-Id` header + `[rid]` log prefix on
+  every request. Real-OpenAI embeddings path added (`embed_async` → AsyncOpenAI when
+  `OPENAI_API_KEY` is set; else deterministic 512-d char+word n-gram hash, substantially
+  stronger than the previous 256-d md5 bag-of-bigrams). Cosine() defends against dim
+  mismatches so live upgrades don't break in-flight cache. **76/76 tests pass** across
+  backend_test, test_auth_settings, test_iteration7.
+
+- Iteration 8 (2026-02-29): Major UI/UX polish pass — added motion language across the
+  product. New CSS primitives: `.stagger` (sequential children fade-up), `.page-enter`
+  (route-mount transition), `.btn-shine` (primary-button shimmer on hover), `.surface-hover`
+  (lift + gradient top-edge accent on card hover), `.nav-active` (gradient accent bar +
+  glow dot on active sidebar item), `.pulse-dot` & `.pulse-ring` (live status pip),
+  `.float-soft` (idle bob on empty-state icons), `.ambient-blob` (radial gradient drift
+  behind empty-state hero). Topbar "Gateway live" pill repainted as emerald glass with
+  pulsing ring. PageHeader gets a 40px gradient accent underline + blue dot kicker.
+  EmptyState now floats its icon over an animated radial blob. All KPI grids
+  (Overview · Routing · Cache · Forecasting · Providers · Optimization · Settings ·
+  Recommendations · Budgets) use `.stagger` for cinematic first-paint. Primary buttons
+  (Login submit · Register submit · Playground stream) carry `.btn-shine`. Manually
+  verified end-to-end via Playwright across Overview, Playground, Routing, Settings,
+  Recommendations, Forecasting — zero regressions, all data-testids preserved.
 
 ## Backlog (P1 → P2)
 **P1**

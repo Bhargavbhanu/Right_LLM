@@ -54,7 +54,7 @@ export default function Budgets() {
           <div className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-3 font-medium">
             {SCOPE_LABELS[scope]}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger">
             {(byScope[scope] || []).map((p) => {
               const s = STATUS_STYLES[p.status] || STATUS_STYLES.healthy;
               const Icon = s.icon;

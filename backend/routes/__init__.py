@@ -1,5 +1,9 @@
-"""Re-exports all feature routers so server.py can mount them with one loop."""
-from .gateway import router as gateway_router
+"""Re-exports feature routers so server.py can mount them with one loop.
+
+NOTE: the gateway router is NOT included here — it is mounted explicitly via
+`register_gateway(api, limiter)` in server.py because slowapi decorators must wrap
+the endpoint functions at registration time.
+"""
 from .routing import router as routing_router
 from .cache import router as cache_router
 from .analytics import router as analytics_router
@@ -12,7 +16,6 @@ from .meta import router as meta_router
 
 ALL_ROUTERS = [
     meta_router,
-    gateway_router,
     routing_router,
     cache_router,
     analytics_router,

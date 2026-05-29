@@ -64,7 +64,6 @@ def estimate_cost(prompt_tokens: int, completion_tokens: int, model: dict) -> fl
 import os as _os
 EMBED_DIM = 512
 _OPENAI_EMBED_MODEL = "text-embedding-3-small"
-_OPENAI_EMBED_DIM = 1536
 
 
 def _hash_embed(text: str) -> list[float]:
@@ -108,10 +107,8 @@ _openai_available = False
 def _maybe_init_openai() -> None:
     """Initialize the OpenAI async client lazily. Safe to call repeatedly."""
     global _openai_client, _openai_available
-    if _openai_client is not None or _openai_available is False and "OPENAI_API_KEY" not in _os.environ:
-        # Either already tried, or no key at all → use deterministic
-        if "OPENAI_API_KEY" not in _os.environ:
-            _openai_available = False
+    # Already initialized, or no key in env → nothing to do.
+    if _openai_client is not None or "OPENAI_API_KEY" not in _os.environ:
         return
     try:
         from openai import AsyncOpenAI  # noqa: WPS433 — local import: optional dep

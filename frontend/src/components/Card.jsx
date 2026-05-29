@@ -105,18 +105,30 @@ export function SectionCard({
 }
 
 /**
- * EmptyState — consistent empty/idle state component.
+ * EmptyState — consistent empty/idle state component with ambient gradient glow.
  */
 export function EmptyState({ icon, title, description, action, testId }) {
   return (
     <div
       data-testid={testId}
-      className="flex flex-col items-center justify-center text-center px-6 py-12 border border-dashed border-zinc-800 rounded-lg bg-zinc-950/50"
+      className="relative flex flex-col items-center justify-center text-center px-6 py-14 border border-dashed border-zinc-800 rounded-lg bg-zinc-950/40 overflow-hidden"
     >
-      {icon && <div className="w-10 h-10 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 mb-4">{icon}</div>}
-      {title && <div className="font-heading text-sm font-semibold text-zinc-200">{title}</div>}
-      {description && <div className="text-xs text-zinc-500 mt-1.5 max-w-sm">{description}</div>}
-      {action && <div className="mt-4">{action}</div>}
+      {/* Ambient gradient blob behind icon */}
+      <div
+        className="absolute inset-0 pointer-events-none ambient-blob"
+        style={{
+          background:
+            "radial-gradient(360px 200px at 50% 30%, rgba(99,102,241,0.10), transparent 70%)",
+        }}
+      />
+      {icon && (
+        <div className="relative w-12 h-12 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-300 mb-4 float-soft shadow-[0_0_24px_-8px_rgba(99,102,241,0.4)]">
+          {icon}
+        </div>
+      )}
+      {title && <div className="relative font-heading text-sm font-semibold text-zinc-200">{title}</div>}
+      {description && <div className="relative text-xs text-zinc-500 mt-1.5 max-w-sm leading-relaxed">{description}</div>}
+      {action && <div className="relative mt-4">{action}</div>}
     </div>
   );
 }

@@ -39,7 +39,7 @@ export default function Forecasting() {
         testId="forecasting-header"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 stagger">
         <StatCard
           testId="fc-runrate"
           label="Daily run rate"

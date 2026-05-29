@@ -107,16 +107,19 @@ export default function Topbar({ onPaletteOpen, onMobileMenuOpen, onRefresh }) {
         <Search className="w-4 h-4" />
       </button>
 
-      {/* Live status pill */}
+      {/* Live status pill — pulsing dot + live request counter feel */}
       <div
-        className="hidden lg:flex items-center gap-2 h-9 px-3 rounded-md border border-zinc-800 bg-zinc-950/50 text-xs text-zinc-400"
+        className="hidden lg:flex items-center gap-2 h-9 px-3 rounded-md border border-emerald-500/15 bg-emerald-500/[0.04] text-xs"
         data-testid="topbar-status"
       >
-        <span className="status-dot" style={{ color: "#22C55E", background: "#22C55E" }} />
+        <span className="relative inline-flex items-center justify-center">
+          <span className="absolute w-3 h-3 rounded-full bg-emerald-500/30 pulse-ring" />
+          <span className="relative w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot" />
+        </span>
         <Activity className="w-3.5 h-3.5 text-emerald-400" />
-        <span className="font-medium text-zinc-200">Gateway live</span>
-        <span className="text-zinc-600 mono">·</span>
-        <span className="mono text-zinc-500">{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+        <span className="font-medium text-emerald-200">Gateway live</span>
+        <span className="text-zinc-700 mono">·</span>
+        <span className="mono text-zinc-500 tabular-nums">{now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
 
       <button

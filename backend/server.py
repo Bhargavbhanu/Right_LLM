@@ -57,9 +57,6 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
 # ── Mount feature routers ──────────────────────────────────────────────────
 register_gateway(api, limiter)  # gateway needs the limiter at registration time
 for r in ALL_ROUTERS:
-    # Skip duplicate gateway router — it was already attached via register_gateway
-    if r.tags and "gateway" in r.tags:
-        continue
     api.include_router(r)
 
 app.include_router(api)
